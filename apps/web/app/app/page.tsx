@@ -5,8 +5,8 @@ export default async function AppPage() {
   const { userId } = await auth();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 text-center">
+    <div className="max-w-4xl mx-auto">
+      <div className="bg-white rounded-lg shadow-md p-8 text-center">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">
             Welcome to the App
@@ -28,23 +28,13 @@ export default async function AppPage() {
             </p>
           </div>
         </div>
-        <div className="mt-6 space-y-4">
-          <div className="space-x-4">
-            <a
-              href="/app/notes"
-              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              📝 Notes
-            </a>
-          </div>
-          <div>
-            <a
-              href="/"
-              className="text-indigo-600 hover:text-indigo-500 font-medium"
-            >
-              ← Back to Home
-            </a>
-          </div>
+        <div className="mt-6">
+          <a
+            href="/app/notes"
+            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            📝 Notes
+          </a>
         </div>
       </div>
     </div>

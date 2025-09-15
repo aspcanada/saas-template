@@ -117,8 +117,7 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Notes</h1>
           <button
@@ -216,17 +215,6 @@ export default function NotesPage() {
             ))
           )}
         </div>
-
-        {/* Back to App */}
-        <div className="mt-8">
-          <a
-            href="/app"
-            className="text-indigo-600 hover:text-indigo-500 font-medium"
-          >
-            ← Back to App
-          </a>
-        </div>
-      </div>
     </div>
   );
 }
