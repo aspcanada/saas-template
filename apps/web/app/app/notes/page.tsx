@@ -13,7 +13,8 @@ export default function NotesPage() {
   // Fetch notes
   const fetchNotes = async () => {
     try {
-      const response = await fetch("/api/notes");
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/notes`);
       if (response.ok) {
         const data = await response.json();
         setNotes(data);
@@ -28,7 +29,8 @@ export default function NotesPage() {
   // Create note
   const createNote = async (noteData: CreateNoteRequest) => {
     try {
-      const response = await fetch("/api/notes", {
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(noteData),
@@ -48,7 +50,8 @@ export default function NotesPage() {
   // Update note
   const updateNote = async (id: string, noteData: UpdateNoteRequest) => {
     try {
-      const response = await fetch(`/api/notes/${id}`, {
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/notes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(noteData),
@@ -68,7 +71,8 @@ export default function NotesPage() {
   // Delete note
   const deleteNote = async (id: string) => {
     try {
-      const response = await fetch(`/api/notes/${id}`, {
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/notes/${id}`, {
         method: "DELETE",
       });
       

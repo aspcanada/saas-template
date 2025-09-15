@@ -70,7 +70,8 @@ export default function BillingPage() {
   const handleChoosePlan = async (planId: string) => {
     setLoading(planId);
     try {
-      const response = await fetch("/api/billing/checkout", {
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/billing/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId: planId }),
@@ -94,7 +95,8 @@ export default function BillingPage() {
   const handleManageBilling = async () => {
     setLoading("manage");
     try {
-      const response = await fetch("/api/billing/portal", {
+      const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const response = await fetch(`${apiBaseUrl}/billing/portal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
