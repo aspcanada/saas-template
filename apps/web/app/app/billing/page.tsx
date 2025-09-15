@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 interface Plan {
   id: string;
@@ -65,24 +66,35 @@ const plans: Plan[] = [
 ];
 
 export default function BillingPage() {
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleChoosePlan = async (planId: string) => {
     setLoading(planId);
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const token = await getToken();
+      
       const response = await fetch(`${apiBaseUrl}/billing/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify({ priceId: planId }),
       });
       
       const data = await response.json();
       
-      if (data.url) {
+      if (response.ok && data.url) {
         // In a real app, you'd redirect to Stripe checkout
         alert(`Redirecting to checkout: ${data.url}`);
         // window.location.href = data.url;
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
+        alert("Authentication failed. Please sign in again.");
+      } else {
+        alert("Failed to create checkout session");
       }
     } catch (error) {
       console.error("Failed to create checkout session:", error);
@@ -96,17 +108,27 @@ export default function BillingPage() {
     setLoading("manage");
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const token = await getToken();
+      
       const response = await fetch(`${apiBaseUrl}/billing/portal`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
       });
       
       const data = await response.json();
       
-      if (data.url) {
+      if (response.ok && data.url) {
         // In a real app, you'd redirect to Stripe customer portal
         alert(`Redirecting to billing portal: ${data.url}`);
         // window.location.href = data.url;
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
+        alert("Authentication failed. Please sign in again.");
+      } else {
+        alert("Failed to create portal session");
       }
     } catch (error) {
       console.error("Failed to create portal session:", error);

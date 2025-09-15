@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { Note, CreateNoteRequest, UpdateNoteRequest } from "../../../src/types/notes";
 
 export default function NotesPage() {
+  const { getToken } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -14,10 +16,19 @@ export default function NotesPage() {
   const fetchNotes = async () => {
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
-      const response = await fetch(`${apiBaseUrl}/notes`);
+      const token = await getToken();
+      
+      const response = await fetch(`${apiBaseUrl}/notes`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
       if (response.ok) {
         const data = await response.json();
         setNotes(data);
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
       }
     } catch (error) {
       console.error("Failed to fetch notes:", error);
@@ -30,9 +41,14 @@ export default function NotesPage() {
   const createNote = async (noteData: CreateNoteRequest) => {
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const token = await getToken();
+      
       const response = await fetch(`${apiBaseUrl}/notes`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(noteData),
       });
       
@@ -41,6 +57,8 @@ export default function NotesPage() {
         setNotes(prev => [newNote, ...prev]);
         setFormData({ title: "", content: "" });
         setShowForm(false);
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
       }
     } catch (error) {
       console.error("Failed to create note:", error);
@@ -51,9 +69,14 @@ export default function NotesPage() {
   const updateNote = async (id: string, noteData: UpdateNoteRequest) => {
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const token = await getToken();
+      
       const response = await fetch(`${apiBaseUrl}/notes/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
         body: JSON.stringify(noteData),
       });
       
@@ -62,6 +85,8 @@ export default function NotesPage() {
         setNotes(prev => prev.map(note => note.id === id ? updatedNote : note));
         setEditingNote(null);
         setFormData({ title: "", content: "" });
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
       }
     } catch (error) {
       console.error("Failed to update note:", error);
@@ -72,12 +97,19 @@ export default function NotesPage() {
   const deleteNote = async (id: string) => {
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+      const token = await getToken();
+      
       const response = await fetch(`${apiBaseUrl}/notes/${id}`, {
         method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
       });
       
       if (response.ok) {
         setNotes(prev => prev.filter(note => note.id !== id));
+      } else if (response.status === 401) {
+        console.error("Authentication failed. Please sign in again.");
       }
     } catch (error) {
       console.error("Failed to delete note:", error);
