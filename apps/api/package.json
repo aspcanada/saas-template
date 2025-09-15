@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/server.ts",
+    "dev": "tsx --env-file=.env.local src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
