@@ -43,6 +43,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 Notes
               </Link>
+              <Link
+                href="/app/billing"
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  pathname.startsWith("/app/billing") 
+                    ? "bg-indigo-100 text-indigo-700" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Billing
+              </Link>
             </nav>
 
             {/* App Auth Section */}
