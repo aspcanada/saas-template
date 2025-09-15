@@ -17,7 +17,8 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["./packages/shared/src/*"]
+      "@saas-template/shared": ["./packages/shared/src/index.ts"],
+      "@saas-template/shared/*": ["./packages/shared/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next", "out", "cdk.out"]

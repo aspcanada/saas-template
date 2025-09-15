@@ -3,25 +3,10 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import fetch from "node-fetch";
+import { Note, CreateNoteRequest, UpdateNoteRequest, OrgTenantId } from "@saas-template/shared";
+import { DalFactory } from "./dal/dal-factory";
 
-// Types for notes (mirroring the web app)
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface CreateNoteRequest {
-  title: string;
-  content: string;
-}
-
-interface UpdateNoteRequest {
-  title?: string;
-  content?: string;
-}
+// Note: Types are now imported from @saas-template/shared
 
 // Auth types
 interface AuthUser {
@@ -35,50 +20,10 @@ interface JWTPayload {
   [key: string]: any;
 }
 
-// In-memory store for notes (mirroring the web app)
-const notesStore = new Map<string, Note>();
+// Note: Using any for Hono context to avoid complex typing issues
 
-class NotesStore {
-  static create(note: Omit<Note, "id" | "createdAt" | "updatedAt">): Note {
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const newNote: Note = {
-      ...note,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    };
-    notesStore.set(id, newNote);
-    return newNote;
-  }
-
-  static getAll(): Note[] {
-    return Array.from(notesStore.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }
-
-  static getById(id: string): Note | undefined {
-    return notesStore.get(id);
-  }
-
-  static update(id: string, updates: Partial<Pick<Note, "title" | "content">>): Note | undefined {
-    const existing = notesStore.get(id);
-    if (!existing) return undefined;
-
-    const updated: Note = {
-      ...existing,
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    notesStore.set(id, updated);
-    return updated;
-  }
-
-  static delete(id: string): boolean {
-    return notesStore.delete(id);
-  }
-}
+// Get DAL instance
+const notesDal = DalFactory.getNotesDal();
 
 // JWKS cache for Clerk
 let jwksCache: any = null;
@@ -113,7 +58,7 @@ async function getJWKS() {
 }
 
 // Auth middleware
-async function authMiddleware(c: any, next: any) {
+async function authMiddleware(c: any, next: () => Promise<void>) {
   try {
     const authHeader = c.req.header("Authorization");
     
@@ -166,21 +111,25 @@ app.get("/health", (c) => {
 });
 
 // Notes CRUD endpoints (protected)
-// GET /notes - Get all notes
-app.get("/notes", authMiddleware, (c) => {
+// GET /notes - Get all notes for the authenticated user
+app.get("/notes", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     console.log(`Fetching notes for user: ${auth.userId}, org: ${auth.orgId}`);
     
-    const notes = NotesStore.getAll();
+    const notes = await notesDal.listNotesByUser({
+      orgId: auth.orgId,
+      userId: auth.userId,
+    });
     return c.json(notes);
   } catch (error) {
+    console.error("Failed to fetch notes:", error);
     return c.json({ error: "Failed to fetch notes" }, 500);
   }
 });
 
 // POST /notes - Create a new note
-app.post("/notes", authMiddleware, async (c) => {
+app.post("/notes", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     const body: CreateNoteRequest = await c.req.json();
@@ -191,26 +140,32 @@ app.post("/notes", authMiddleware, async (c) => {
 
     console.log(`Creating note for user: ${auth.userId}, org: ${auth.orgId}`);
 
-    const note = NotesStore.create({
+    const note = await notesDal.createNote({
+      orgId: auth.orgId,
+      userId: auth.userId,
       title: body.title,
       content: body.content,
     });
 
     return c.json(note, 201);
   } catch (error) {
+    console.error("Failed to create note:", error);
     return c.json({ error: "Failed to create note" }, 500);
   }
 });
 
 // GET /notes/:id - Get a specific note
-app.get("/notes/:id", authMiddleware, (c) => {
+app.get("/notes/:id", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     const id = c.req.param("id");
     
     console.log(`Fetching note ${id} for user: ${auth.userId}, org: ${auth.orgId}`);
     
-    const note = NotesStore.getById(id);
+    const note = await notesDal.getNote({
+      orgId: auth.orgId,
+      noteId: id,
+    });
     
     if (!note) {
       return c.json({ error: "Note not found" }, 404);
@@ -218,12 +173,13 @@ app.get("/notes/:id", authMiddleware, (c) => {
 
     return c.json(note);
   } catch (error) {
+    console.error("Failed to fetch note:", error);
     return c.json({ error: "Failed to fetch note" }, 500);
   }
 });
 
 // PATCH /notes/:id - Update a specific note
-app.patch("/notes/:id", authMiddleware, async (c) => {
+app.patch("/notes/:id", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     const id = c.req.param("id");
@@ -231,7 +187,11 @@ app.patch("/notes/:id", authMiddleware, async (c) => {
     
     console.log(`Updating note ${id} for user: ${auth.userId}, org: ${auth.orgId}`);
     
-    const updatedNote = NotesStore.update(id, body);
+    const updatedNote = await notesDal.updateNote({
+      orgId: auth.orgId,
+      noteId: id,
+      updates: body,
+    });
     
     if (!updatedNote) {
       return c.json({ error: "Note not found" }, 404);
@@ -239,19 +199,23 @@ app.patch("/notes/:id", authMiddleware, async (c) => {
 
     return c.json(updatedNote);
   } catch (error) {
+    console.error("Failed to update note:", error);
     return c.json({ error: "Failed to update note" }, 500);
   }
 });
 
 // DELETE /notes/:id - Delete a specific note
-app.delete("/notes/:id", authMiddleware, (c) => {
+app.delete("/notes/:id", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     const id = c.req.param("id");
     
     console.log(`Deleting note ${id} for user: ${auth.userId}, org: ${auth.orgId}`);
     
-    const deleted = NotesStore.delete(id);
+    const deleted = await notesDal.deleteNote({
+      orgId: auth.orgId,
+      noteId: id,
+    });
     
     if (!deleted) {
       return c.json({ error: "Note not found" }, 404);
@@ -259,13 +223,14 @@ app.delete("/notes/:id", authMiddleware, (c) => {
 
     return c.json({ success: true });
   } catch (error) {
+    console.error("Failed to delete note:", error);
     return c.json({ error: "Failed to delete note" }, 500);
   }
 });
 
 // Billing endpoints (protected)
 // POST /billing/checkout - Create checkout session
-app.post("/billing/checkout", authMiddleware, async (c) => {
+app.post("/billing/checkout", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     const body = await c.req.json();
@@ -292,7 +257,7 @@ app.post("/billing/checkout", authMiddleware, async (c) => {
 });
 
 // POST /billing/portal - Create customer portal session
-app.post("/billing/portal", authMiddleware, async (c) => {
+app.post("/billing/portal", authMiddleware, async (c: any) => {
   try {
     const auth = c.get("auth") as AuthUser;
     
