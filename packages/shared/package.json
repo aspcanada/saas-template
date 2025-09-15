@@ -1,0 +1,15 @@
+{
+  "name": "@saas-template/shared",
+  "version": "1.0.0",
+  "description": "Shared types and constants",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
