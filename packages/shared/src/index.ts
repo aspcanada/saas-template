@@ -11,3 +11,7 @@ export const API_ENDPOINTS = {
   USERS: "/api/users",
   AUTH: "/api/auth",
 } as const;
+
+// Export role and claims types
+export * from "./roles";
+export * from "./claims";

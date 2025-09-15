@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { ALL_ROLES } from "../../../../packages/shared/src/roles";
 
 export default async function AppPage() {
   const { userId } = await auth();
@@ -21,6 +22,9 @@ export default async function AppPage() {
             </p>
             <p className="mt-2 text-sm text-gray-600">
               User ID: {userId}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Available roles: {ALL_ROLES.length} ({ALL_ROLES.join(", ")})
             </p>
           </div>
         </div>
