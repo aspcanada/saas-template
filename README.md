@@ -274,11 +274,12 @@ The template includes full Stripe billing integration with subscription manageme
    
    **For the API server** (`apps/api/.env.local`):
    ```bash
-   # Stripe configuration
-   STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
-   STRIPE_PRICE_FREE=price_free_plan_id
-   STRIPE_PRICE_PRO=price_pro_plan_id
-   STRIPE_PRICE_BUSINESS=price_business_plan_id
+# Stripe configuration
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+STRIPE_PRICE_FREE=price_free_plan_id
+STRIPE_PRICE_PRO=price_pro_plan_id
+STRIPE_PRICE_BUSINESS=price_business_plan_id
    
    # Optional: Custom URLs (defaults to localhost)
    STRIPE_SUCCESS_URL=http://localhost:3000/app/billing?success=true
@@ -298,6 +299,8 @@ The template includes full Stripe billing integration with subscription manageme
 
 - `POST /billing/checkout` - Create checkout session for plan upgrade
 - `POST /billing/portal` - Create customer portal session for subscription management
+- `GET /billing/entitlement` - Get current billing entitlement and plan status
+- `POST /billing/webhook` - Stripe webhook handler for subscription events
 
 ### Development vs Production
 
@@ -325,6 +328,27 @@ The template includes full Stripe billing integration with subscription manageme
 - Real Stripe checkout and portal sessions
 - Customer management by organization ID
 - Full subscription lifecycle management
+- Webhook signature verification for secure event processing
+- Real-time entitlement tracking and plan status updates
+
+### Webhook Integration
+
+The system includes a secure webhook handler that processes Stripe events:
+
+**Supported Events**:
+- `checkout.session.completed` - Stores customer information
+- `customer.subscription.created/updated/deleted` - Updates plan entitlements
+
+**Security**:
+- Webhook signature verification using `STRIPE_WEBHOOK_SECRET`
+- Event validation and error handling
+- Graceful fallback for missing Stripe configuration
+
+**Entitlement System**:
+- Real-time plan status tracking
+- Current plan display with billing dates
+- Upgrade/downgrade CTAs based on current entitlement
+- Mock mode support for development without Stripe
 
 ### Testing Billing
 

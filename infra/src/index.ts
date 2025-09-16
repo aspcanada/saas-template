@@ -116,6 +116,7 @@ export class ApiStack extends Stack {
   private notesGetFunction: NodejsFunction;
   private billingCheckoutFunction: NodejsFunction;
   private billingPortalFunction: NodejsFunction;
+  private billingEntitlementFunction: NodejsFunction;
   private billingWebhookFunction: NodejsFunction;
   private attachmentsPresignFunction: NodejsFunction;
 
@@ -140,6 +141,7 @@ export class ApiStack extends Stack {
     // Billing Lambda functions
     this.billingCheckoutFunction = this.createLambdaFunction("BillingCheckout", "billing/checkout");
     this.billingPortalFunction = this.createLambdaFunction("BillingPortal", "billing/portal");
+    this.billingEntitlementFunction = this.createLambdaFunction("BillingEntitlement", "billing/entitlement");
     this.billingWebhookFunction = this.createLambdaFunction("BillingWebhook", "billing/webhook");
 
     // Attachments Lambda function
@@ -151,6 +153,7 @@ export class ApiStack extends Stack {
       this.notesGetFunction,
       this.billingCheckoutFunction,
       this.billingPortalFunction,
+      this.billingEntitlementFunction,
       this.billingWebhookFunction,
       this.attachmentsPresignFunction,
     ];
@@ -240,6 +243,12 @@ export class ApiStack extends Stack {
       path: "/billing/portal",
       methods: [HttpMethod.POST],
       integration: new HttpLambdaIntegration("BillingPortalIntegration", this.billingPortalFunction),
+    });
+
+    this.httpApi.addRoutes({
+      path: "/billing/entitlement",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration("BillingEntitlementIntegration", this.billingEntitlementFunction),
     });
 
     this.httpApi.addRoutes({

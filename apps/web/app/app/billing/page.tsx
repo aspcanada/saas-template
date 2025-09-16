@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 interface Plan {
@@ -15,6 +15,13 @@ interface Plan {
   priceId?: string;
   disabled?: boolean;
   disabledReason?: string;
+}
+
+interface Entitlement {
+  plan: "FREE" | "CLINIC" | "PRACTICE_PLUS";
+  status: string;
+  currentPeriodEnd: number | null;
+  mock?: boolean;
 }
 
 // Check if Stripe is configured
@@ -89,6 +96,65 @@ const plans: Plan[] = [
 export default function BillingPage() {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
+  const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
+  const [entitlementLoading, setEntitlementLoading] = useState(true);
+
+  // Fetch current entitlement
+  useEffect(() => {
+    const fetchEntitlement = async () => {
+      try {
+        const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
+        const token = await getToken();
+        
+        if (!token) {
+          setEntitlementLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${apiBaseUrl}/billing/entitlement`, {
+          method: "GET",
+          headers: { 
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setEntitlement(data);
+        } else {
+          console.error("Failed to fetch entitlement:", response.status);
+        }
+      } catch (error) {
+        console.error("Failed to fetch entitlement:", error);
+      } finally {
+        setEntitlementLoading(false);
+      }
+    };
+
+    fetchEntitlement();
+  }, [getToken]);
+
+  // Map plan names
+  const getPlanDisplayName = (plan: string) => {
+    switch (plan) {
+      case "FREE": return "Free";
+      case "CLINIC": return "Pro";
+      case "PRACTICE_PLUS": return "Business";
+      default: return plan;
+    }
+  };
+
+  const getCurrentPlan = () => {
+    if (!entitlement) return null;
+    return plans.find(plan => {
+      switch (entitlement.plan) {
+        case "FREE": return plan.id === "free";
+        case "CLINIC": return plan.id === "pro";
+        case "PRACTICE_PLUS": return plan.id === "business";
+        default: return false;
+      }
+    });
+  };
 
   const handleChoosePlan = async (plan: Plan) => {
     if (plan.disabled) {
@@ -206,11 +272,27 @@ export default function BillingPage() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-blue-900">Current Plan</h3>
-            <p className="text-blue-700">You&apos;re currently on the Free plan</p>
+            {entitlementLoading ? (
+              <p className="text-blue-700">Loading...</p>
+            ) : entitlement ? (
+              <div>
+                <p className="text-blue-700">
+                  You&apos;re currently on the {getPlanDisplayName(entitlement.plan)} plan
+                  {entitlement.mock && " (Demo Mode)"}
+                </p>
+                {entitlement.currentPeriodEnd && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Next billing date: {new Date(entitlement.currentPeriodEnd * 1000).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-blue-700">Unable to load current plan</p>
+            )}
           </div>
           <button
             onClick={handleManageBilling}
-            disabled={loading === "manage"}
+            disabled={loading === "manage" || entitlementLoading}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {loading === "manage" ? "Loading..." : "Manage Billing"}
@@ -220,65 +302,99 @@ export default function BillingPage() {
 
       {/* Pricing Plans */}
       <div className="grid md:grid-cols-3 gap-8 mb-12">
-        {plans.map((plan) => (
-          <div
-            key={plan.id}
-            className={`relative bg-white rounded-lg shadow-lg p-8 ${
-              plan.popular ? "ring-2 ring-indigo-500" : ""
-            }`}
-          >
-            {plan.popular && (
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-indigo-500 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  Most Popular
-                </span>
-              </div>
-            )}
-            
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-              <div className="text-4xl font-bold text-gray-900 mb-2">
-                {plan.price}
-                <span className="text-lg font-normal text-gray-500">/month</span>
-              </div>
-              <p className="text-gray-600">{plan.description}</p>
-            </div>
+        {plans.map((plan) => {
+          const currentPlan = getCurrentPlan();
+          const isCurrentPlan = currentPlan?.id === plan.id;
+          const isUpgrade = currentPlan && 
+            ((currentPlan.id === "free" && plan.id === "pro") ||
+             (currentPlan.id === "free" && plan.id === "business") ||
+             (currentPlan.id === "pro" && plan.id === "business"));
+          const isDowngrade = currentPlan && 
+            ((currentPlan.id === "pro" && plan.id === "free") ||
+             (currentPlan.id === "business" && plan.id === "free") ||
+             (currentPlan.id === "business" && plan.id === "pro"));
 
-            <ul className="space-y-3 mb-8">
-              {plan.features.map((feature, index) => (
-                <li key={index} className="flex items-center">
-                  <svg
-                    className="w-5 h-5 text-green-500 mr-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span className="text-gray-700">{feature}</span>
-                </li>
-              ))}
-            </ul>
+          let buttonText = plan.buttonText;
+          let buttonVariant = plan.buttonVariant;
 
-            <button
-              onClick={() => handleChoosePlan(plan)}
-              disabled={loading === plan.id || plan.disabled}
-              title={plan.disabled ? plan.disabledReason : undefined}
-              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                plan.buttonVariant === "primary"
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
-                  : "bg-gray-200 text-gray-900 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
-              }`}
+          if (isCurrentPlan) {
+            buttonText = "Current Plan";
+            buttonVariant = "secondary";
+          } else if (isUpgrade) {
+            buttonText = "Upgrade";
+            buttonVariant = "primary";
+          } else if (isDowngrade) {
+            buttonText = "Downgrade";
+            buttonVariant = "secondary";
+          }
+
+          return (
+            <div
+              key={plan.id}
+              className={`relative bg-white rounded-lg shadow-lg p-8 ${
+                plan.popular ? "ring-2 ring-indigo-500" : ""
+              } ${isCurrentPlan ? "ring-2 ring-blue-500" : ""}`}
             >
-              {loading === plan.id ? "Processing..." : plan.buttonText}
-            </button>
-          </div>
-        ))}
+              {plan.popular && !isCurrentPlan && (
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-indigo-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+                    Most Popular
+                  </span>
+                </div>
+              )}
+              {isCurrentPlan && (
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+                    Current Plan
+                  </span>
+                </div>
+              )}
+              
+              <div className="text-center mb-6">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                <div className="text-4xl font-bold text-gray-900 mb-2">
+                  {plan.price}
+                  <span className="text-lg font-normal text-gray-500">/month</span>
+                </div>
+                <p className="text-gray-600">{plan.description}</p>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {plan.features.map((feature, index) => (
+                  <li key={index} className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-green-500 mr-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => handleChoosePlan(plan)}
+                disabled={loading === plan.id || plan.disabled || isCurrentPlan}
+                title={plan.disabled ? plan.disabledReason : isCurrentPlan ? "This is your current plan" : undefined}
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                  buttonVariant === "primary"
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
+                    : "bg-gray-200 text-gray-900 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
+                }`}
+              >
+                {loading === plan.id ? "Processing..." : buttonText}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Additional Info */}

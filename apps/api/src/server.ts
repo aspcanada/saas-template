@@ -373,6 +373,157 @@ app.post("/billing/portal", authMiddleware, async (c: any) => {
   }
 });
 
+// GET /billing/entitlement - Get current billing entitlement
+app.get("/billing/entitlement", authMiddleware, async (c: any) => {
+  try {
+    const auth = c.get("auth") as AuthUser;
+    const orgId = auth.orgId || "demo-org";
+
+    console.log(`Getting entitlement for user: ${auth.userId}, org: ${orgId}`);
+
+    // If Stripe is not configured, return mock response
+    if (!stripe) {
+      return c.json({
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+        mock: true,
+      });
+    }
+
+    // Get customer by orgId
+    const customers = await stripe.customers.list({ limit: 100 });
+    const customer = customers.data.find(c => c.metadata?.orgId === orgId);
+
+    if (!customer) {
+      return c.json({
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+      });
+    }
+
+    // Get active subscription
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: "active",
+      limit: 1,
+    });
+
+    if (subscriptions.data.length === 0) {
+      return c.json({
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+      });
+    }
+
+    const subscription = subscriptions.data[0];
+    const priceId = subscription.items.data[0]?.price.id;
+    
+    // Map price ID to plan name
+    let plan = "FREE";
+    if (priceId === process.env.STRIPE_PRICE_PRO) {
+      plan = "CLINIC";
+    } else if (priceId === process.env.STRIPE_PRICE_BUSINESS) {
+      plan = "PRACTICE_PLUS";
+    }
+
+    return c.json({
+      plan,
+      status: subscription.status,
+      currentPeriodEnd: (subscription as any).current_period_end || null,
+    });
+  } catch (error) {
+    console.error("Entitlement error:", error);
+    return c.json({ error: "Failed to get billing entitlement" }, 500);
+  }
+});
+
+// POST /billing/webhook - Stripe webhook handler
+app.post("/billing/webhook", async (c: any) => {
+  try {
+    const body = await c.req.text();
+    const signature = c.req.header("stripe-signature");
+
+    if (!signature) {
+      console.error("Missing stripe-signature header");
+      return c.json({ error: "Missing stripe-signature header" }, 400);
+    }
+
+    if (!stripe) {
+      console.warn("Stripe not configured, ignoring webhook");
+      return c.json({ received: true, mock: true });
+    }
+
+    // Verify webhook signature
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err) {
+      console.error("Webhook signature verification failed:", err);
+      return c.json({ error: "Invalid signature" }, 400);
+    }
+
+    console.log(`Processing webhook event: ${event.type}`);
+
+    // Handle different event types
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as any;
+        const orgId = session.metadata?.orgId;
+        const customerId = session.customer;
+
+        if (orgId && customerId) {
+          // Store customer info in DynamoDB
+          // This would need to be implemented in the DAL
+          console.log(`Checkout completed for org: ${orgId}, customer: ${customerId}`);
+          // TODO: Store in DynamoDB with PK=ORG#orgId, SK=BILLING#CUSTOMER
+        }
+        break;
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as any;
+        const customerId = subscription.customer;
+
+        // Get customer to find orgId
+        const customer = await stripe.customers.retrieve(customerId);
+        const orgId = (customer as any).metadata?.orgId;
+
+        if (orgId) {
+          const priceId = subscription.items?.data?.[0]?.price?.id;
+          let plan = "FREE";
+          
+          if (priceId === process.env.STRIPE_PRICE_PRO) {
+            plan = "CLINIC";
+          } else if (priceId === process.env.STRIPE_PRICE_BUSINESS) {
+            plan = "PRACTICE_PLUS";
+          }
+
+          console.log(`Subscription ${event.type} for org: ${orgId}, plan: ${plan}, status: ${subscription.status}`);
+          // TODO: Store in DynamoDB with PK=ORG#orgId, SK=ENTITLEMENT#PLAN
+        }
+        break;
+      }
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    return c.json({ received: true });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return c.json({ error: "Webhook processing failed" }, 500);
+  }
+});
+
 // File upload endpoints (protected)
 // POST /attachments/presign - Generate presigned URL for file upload
 app.post("/attachments/presign", authMiddleware, async (c: any) => {

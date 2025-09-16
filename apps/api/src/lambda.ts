@@ -316,14 +316,152 @@ export const billingPortal = async (event: APIGatewayProxyEvent, context: Contex
 
 export const billingWebhook = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
   try {
-    // Webhook handler - would process Stripe webhook events
-    // This is a placeholder implementation
-    console.log("Webhook received:", event.body);
-    
+    const body = event.body || "";
+    const signature = event.headers["stripe-signature"] || event.headers["Stripe-Signature"];
+
+    if (!signature) {
+      console.error("Missing stripe-signature header");
+      return createResponse(400, { error: "Missing stripe-signature header" });
+    }
+
+    if (!stripe) {
+      console.warn("Stripe not configured, ignoring webhook");
+      return createResponse(200, { received: true, mock: true });
+    }
+
+    // Verify webhook signature
+    let webhookEvent;
+    try {
+      webhookEvent = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err) {
+      console.error("Webhook signature verification failed:", err);
+      return createResponse(400, { error: "Invalid signature" });
+    }
+
+    console.log(`Processing webhook event: ${webhookEvent.type}`);
+
+    // Handle different event types
+    switch (webhookEvent.type) {
+      case "checkout.session.completed": {
+        const session = webhookEvent.data.object as any;
+        const orgId = session.metadata?.orgId;
+        const customerId = session.customer;
+
+        if (orgId && customerId) {
+          console.log(`Checkout completed for org: ${orgId}, customer: ${customerId}`);
+          // TODO: Store in DynamoDB with PK=ORG#orgId, SK=BILLING#CUSTOMER
+        }
+        break;
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = webhookEvent.data.object as any;
+        const customerId = subscription.customer;
+
+        // Get customer to find orgId
+        const customer = await stripe.customers.retrieve(customerId);
+        const orgId = (customer as any).metadata?.orgId;
+
+        if (orgId) {
+          const priceId = subscription.items?.data?.[0]?.price?.id;
+          let plan = "FREE";
+          
+          if (priceId === process.env.STRIPE_PRICE_PRO) {
+            plan = "CLINIC";
+          } else if (priceId === process.env.STRIPE_PRICE_BUSINESS) {
+            plan = "PRACTICE_PLUS";
+          }
+
+          console.log(`Subscription ${webhookEvent.type} for org: ${orgId}, plan: ${plan}, status: ${subscription.status}`);
+          // TODO: Store in DynamoDB with PK=ORG#orgId, SK=ENTITLEMENT#PLAN
+        }
+        break;
+      }
+
+      default:
+        console.log(`Unhandled event type: ${webhookEvent.type}`);
+    }
+
     return createResponse(200, { received: true });
   } catch (error) {
     console.error("Webhook error:", error);
     return createResponse(500, { error: "Webhook processing failed" });
+  }
+};
+
+// Billing entitlement handler
+export const billingEntitlement = async (event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> => {
+  try {
+    const auth = await authenticate(event);
+    const orgId = auth.orgId || "demo-org";
+
+    console.log(`Getting entitlement for user: ${auth.userId}, org: ${orgId}`);
+
+    // If Stripe is not configured, return mock response
+    if (!stripe) {
+      return createResponse(200, {
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+        mock: true,
+      });
+    }
+
+    // Get customer by orgId
+    const customers = await stripe.customers.list({ limit: 100 });
+    const customer = customers.data.find(c => c.metadata?.orgId === orgId);
+
+    if (!customer) {
+      return createResponse(200, {
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+      });
+    }
+
+    // Get active subscription
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: "active",
+      limit: 1,
+    });
+
+    if (subscriptions.data.length === 0) {
+      return createResponse(200, {
+        plan: "FREE",
+        status: "active",
+        currentPeriodEnd: null,
+      });
+    }
+
+    const subscription = subscriptions.data[0];
+    const priceId = subscription.items.data[0]?.price.id;
+    
+    // Map price ID to plan name
+    let plan = "FREE";
+    if (priceId === process.env.STRIPE_PRICE_PRO) {
+      plan = "CLINIC";
+    } else if (priceId === process.env.STRIPE_PRICE_BUSINESS) {
+      plan = "PRACTICE_PLUS";
+    }
+
+    return createResponse(200, {
+      plan,
+      status: subscription.status,
+      currentPeriodEnd: (subscription as any).current_period_end || null,
+    });
+  } catch (error) {
+    console.error("Entitlement error:", error);
+    if (error instanceof Error && error.message.includes("Authorization")) {
+      return createResponse(401, { error: error.message });
+    }
+    return createResponse(500, { error: "Failed to get billing entitlement" });
   }
 };
 
