@@ -1,5 +1,5 @@
 import { NotesDal } from "./notes-dal";
-import { Note, CreateNoteRequest, UpdateNoteRequest, OrgTenantId, KeyBuilders } from "@saas-template/shared";
+import { Note, OrgTenantId, KeyBuilders } from "@saas-template/shared";
 
 /**
  * DynamoDB implementation of NotesDal
@@ -20,6 +20,7 @@ export class DynamoNotesDal implements NotesDal {
   async createNote(params: {
     orgId: OrgTenantId;
     userId: string;
+    subjectId?: string;
     title: string;
     content: string;
   }): Promise<Note> {
@@ -72,7 +73,8 @@ export class DynamoNotesDal implements NotesDal {
   async updateNote(params: {
     orgId: OrgTenantId;
     noteId: string;
-    updates: UpdateNoteRequest;
+    title?: string;
+    content?: string;
   }): Promise<Note | null> {
     // TODO: Implement DynamoDB UpdateItem operation
     // const key = KeyBuilders.noteKey(params.orgId, params.noteId);
@@ -92,23 +94,14 @@ export class DynamoNotesDal implements NotesDal {
     throw new Error("DynamoNotesDal.deleteNote not implemented yet");
   }
 
-  async listNotesByPatient(params: {
+  async listNotesBySubject(params: {
     orgId: OrgTenantId;
-    patientId: string;
+    subjectId: string;
   }): Promise<Note[]> {
-    // TODO: Implement patient notes query
-    // This would require a GSI with patientId as the partition key
-    console.log(`TODO: Implement DynamoDB listNotesByPatient for orgId=${params.orgId}, patientId=${params.patientId}`);
-    return [];
+    // TODO: Implement subject notes query
+    // This would require a GSI with subjectId as the partition key
+
+    throw new Error("DynamoNotesDal.listNotesBySubject not implemented yet");
   }
 
-  async listNotesByProvider(params: {
-    orgId: OrgTenantId;
-    providerId: string;
-  }): Promise<Note[]> {
-    // TODO: Implement provider notes query
-    // This would require a GSI with providerId as the partition key
-    console.log(`TODO: Implement DynamoDB listNotesByProvider for orgId=${params.orgId}, providerId=${params.providerId}`);
-    return [];
-  }
 }

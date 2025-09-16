@@ -1,4 +1,4 @@
-import { Note, CreateNoteRequest, UpdateNoteRequest, OrgTenantId } from "@saas-template/shared";
+import { Note, OrgTenantId } from "@saas-template/shared";
 
 /**
  * Data Access Layer interface for Notes
@@ -11,6 +11,7 @@ export interface NotesDal {
   createNote(params: {
     orgId: OrgTenantId;
     userId: string;
+    subjectId?: string;
     title: string;
     content: string;
   }): Promise<Note>;
@@ -39,12 +40,22 @@ export interface NotesDal {
   }): Promise<Note[]>;
 
   /**
+   * List all notes for a subject (patient, student, client, etc.)
+   */
+  listNotesBySubject(params: { 
+    orgId: string; 
+    subjectId: string 
+  }): Promise<Note[]>;
+  
+
+  /**
    * Update a note
    */
   updateNote(params: {
     orgId: OrgTenantId;
     noteId: string;
-    updates: UpdateNoteRequest;
+    title?: string;
+    content?: string;
   }): Promise<Note | null>;
 
   /**
@@ -55,21 +66,4 @@ export interface NotesDal {
     noteId: string;
   }): Promise<boolean>;
 
-  // Future methods for patient/provider notes (stubs for now)
-  
-  /**
-   * List notes for a specific patient (stub for future implementation)
-   */
-  listNotesByPatient(params: {
-    orgId: OrgTenantId;
-    patientId: string;
-  }): Promise<Note[]>;
-
-  /**
-   * List notes for a specific provider (stub for future implementation)
-   */
-  listNotesByProvider(params: {
-    orgId: OrgTenantId;
-    providerId: string;
-  }): Promise<Note[]>;
 }

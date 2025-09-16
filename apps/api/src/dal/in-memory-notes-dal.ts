@@ -1,5 +1,5 @@
 import { NotesDal } from "./notes-dal";
-import { Note, CreateNoteRequest, UpdateNoteRequest, OrgTenantId, KeyBuilders } from "@saas-template/shared";
+import { Note, OrgTenantId, KeyBuilders } from "@saas-template/shared";
 
 /**
  * In-memory implementation of NotesDal
@@ -11,6 +11,7 @@ export class InMemoryNotesDal implements NotesDal {
   async createNote(params: {
     orgId: OrgTenantId;
     userId: string;
+    subjectId?: string;
     title: string;
     content: string;
   }): Promise<Note> {
@@ -23,6 +24,7 @@ export class InMemoryNotesDal implements NotesDal {
       userId: params.userId,
       title: params.title,
       content: params.content,
+      subjectId: params.subjectId,
       createdAt: now,
       updatedAt: now,
     };
@@ -65,7 +67,8 @@ export class InMemoryNotesDal implements NotesDal {
   async updateNote(params: {
     orgId: OrgTenantId;
     noteId: string;
-    updates: UpdateNoteRequest;
+    title?: string;
+    content?: string;
   }): Promise<Note | null> {
     const key = KeyBuilders.noteKey(params.orgId, params.noteId);
     const existing = this.notesStore.get(key);
@@ -76,7 +79,7 @@ export class InMemoryNotesDal implements NotesDal {
 
     const updated: Note = {
       ...existing,
-      ...params.updates,
+      ...params,
       updatedAt: new Date().toISOString(),
     };
 
@@ -93,23 +96,15 @@ export class InMemoryNotesDal implements NotesDal {
   }
 
   // Stub implementations for future features
-  async listNotesByPatient(params: {
+  async listNotesBySubject(params: {
     orgId: OrgTenantId;
-    patientId: string;
+    subjectId: string;
   }): Promise<Note[]> {
-    // TODO: Implement patient notes filtering
-    // For now, return empty array
-    console.log(`TODO: Implement listNotesByPatient for orgId=${params.orgId}, patientId=${params.patientId}`);
-    return [];
+    const notes = Array.from(this.notesStore.values())
+      .filter(note => note.orgId === params.orgId && note.subjectId === params.subjectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    return notes;
   }
 
-  async listNotesByProvider(params: {
-    orgId: OrgTenantId;
-    providerId: string;
-  }): Promise<Note[]> {
-    // TODO: Implement provider notes filtering
-    // For now, return empty array
-    console.log(`TODO: Implement listNotesByProvider for orgId=${params.orgId}, providerId=${params.providerId}`);
-    return [];
-  }
 }

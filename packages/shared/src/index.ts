@@ -12,21 +12,13 @@ export interface Note {
   id: string;
   orgId: string;
   userId: string;
+  subjectId?: string;
   title: string;
   content: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateNoteRequest {
-  title: string;
-  content: string;
-}
-
-export interface UpdateNoteRequest {
-  title?: string;
-  content?: string;
-}
 
 // Organization and tenant types
 export type OrgTenantId = string;
@@ -52,16 +44,11 @@ export const KeyBuilders = {
   orgNotesKey: (orgId: OrgTenantId): string => `org_notes:${orgId}`,
   
   /**
-   * Build a patient notes key (for future use)
-   * Format: patient_notes:{orgId}:{patientId}
+   * Build a subject notes key (for future use)
+   * Format: subject_notes:{orgId}:{subjectId}
    */
-  patientNotesKey: (orgId: OrgTenantId, patientId: string): string => `patient_notes:${orgId}:${patientId}`,
+  subjectNotesKey: (orgId: OrgTenantId, subjectId: string): string => `subject_notes:${orgId}:${subjectId}`,
   
-  /**
-   * Build a provider notes key (for future use)
-   * Format: provider_notes:{orgId}:{providerId}
-   */
-  providerNotesKey: (orgId: OrgTenantId, providerId: string): string => `provider_notes:${orgId}:${providerId}`,
 } as const;
 
 export const API_ENDPOINTS = {
