@@ -3,18 +3,22 @@
 
 import { Stack, StackProps, RemovalPolicy, CfnOutput, Duration } from "aws-cdk-lib";
 import { Table, BillingMode, AttributeType, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
-import { Bucket, BlockPublicAccess, BucketEncryption } from "aws-cdk-lib/aws-s3";
+import { Bucket, BlockPublicAccess, BucketEncryption, BucketAccessControl } from "aws-cdk-lib/aws-s3";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { HttpApi, HttpMethod, CorsHttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
+import { CloudFrontWebDistribution, OriginAccessIdentity, CloudFrontAllowedMethods, CloudFrontAllowedCachedMethods, PriceClass } from "aws-cdk-lib/aws-cloudfront";
+import { S3Origin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Construct } from "constructs";
 
 export class CoreStack extends Stack {
   public readonly table: Table;
   public readonly bucket: Bucket;
+  public readonly webHostingBucket: Bucket;
+  public readonly cloudFrontDistribution: CloudFrontWebDistribution;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -90,6 +94,69 @@ export class CoreStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    // S3 bucket for web hosting
+    this.webHostingBucket = new Bucket(this, "WebHostingBucket", {
+      bucketName: `saas-template-web-${this.account}-${this.region}`,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      encryption: BucketEncryption.S3_MANAGED,
+      versioned: false,
+      removalPolicy: RemovalPolicy.DESTROY,
+      websiteIndexDocument: "index.html",
+      websiteErrorDocument: "index.html", // SPA routing
+    });
+
+    // CloudFront distribution for web hosting
+    const originAccessIdentity = new OriginAccessIdentity(this, "WebOriginAccessIdentity", {
+      comment: "Access identity for web hosting bucket"
+    });
+
+    this.webHostingBucket.grantRead(originAccessIdentity);
+
+    this.cloudFrontDistribution = new CloudFrontWebDistribution(this, "WebDistribution", {
+      originConfigs: [{
+        s3OriginSource: {
+          s3BucketSource: this.webHostingBucket,
+          originAccessIdentity: originAccessIdentity
+        },
+        behaviors: [{
+          isDefaultBehavior: true,
+          allowedMethods: CloudFrontAllowedMethods.GET_HEAD_OPTIONS,
+          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
+          compress: true,
+          defaultTtl: Duration.days(1),
+          maxTtl: Duration.days(7),
+          minTtl: Duration.seconds(0),
+        }, {
+          // Static assets - cache longer
+          pathPattern: "static/*",
+          allowedMethods: CloudFrontAllowedMethods.GET_HEAD_OPTIONS,
+          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
+          defaultTtl: Duration.days(30),
+          maxTtl: Duration.days(365),
+          minTtl: Duration.seconds(0),
+        }, {
+          // API routes - no caching
+          pathPattern: "api/*",
+          allowedMethods: CloudFrontAllowedMethods.ALL,
+          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
+          defaultTtl: Duration.seconds(0),
+          maxTtl: Duration.seconds(0),
+          minTtl: Duration.seconds(0),
+        }]
+      }],
+      errorConfigurations: [{
+        errorCode: 404,
+        responseCode: 200,
+        responsePagePath: "/index.html"
+      }, {
+        errorCode: 403,
+        responseCode: 200,
+        responsePagePath: "/index.html"
+      }],
+      comment: "SaaS Template Web Distribution",
+      priceClass: PriceClass.PRICE_CLASS_100, // Use only North America and Europe for cost optimization
+    });
+
     // Outputs
     new CfnOutput(this, "TableName", {
       value: this.table.tableName,
@@ -104,6 +171,21 @@ export class CoreStack extends Stack {
     new CfnOutput(this, "Region", {
       value: this.region,
       description: "AWS region",
+    });
+
+    new CfnOutput(this, "WebHostingBucketName", {
+      value: this.webHostingBucket.bucketName,
+      description: "S3 bucket name for web hosting",
+    });
+
+    new CfnOutput(this, "CloudFrontDistributionId", {
+      value: this.cloudFrontDistribution.distributionId,
+      description: "CloudFront distribution ID",
+    });
+
+    new CfnOutput(this, "CloudFrontDomainName", {
+      value: this.cloudFrontDistribution.distributionDomainName,
+      description: "CloudFront distribution domain name",
     });
   }
 }

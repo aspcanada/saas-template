@@ -164,9 +164,33 @@ if [[ "$DRY_RUN" == false ]]; then
     print_status "Building web application..."
     NEXT_PUBLIC_API_BASE_URL=$API_URL pnpm -C apps/web build
     
-    print_status "Web application built successfully!"
-    print_info "You can now deploy the web app to your hosting provider"
-    print_info "Make sure to set NEXT_PUBLIC_API_BASE_URL=$API_URL"
+    # Get S3 bucket name
+    print_status "Getting S3 bucket name..."
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name SaasTemplateCore --query 'Stacks[0].Outputs[?OutputKey==`WebHostingBucketName`].OutputValue' --output text --profile $AWS_PROFILE)
+    else
+        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name SaasTemplateCoreDev --query 'Stacks[0].Outputs[?OutputKey==`WebHostingBucketName`].OutputValue' --output text --profile $AWS_PROFILE)
+    fi
+    
+    print_info "S3 Bucket: $BUCKET_NAME"
+    
+    # Deploy to S3
+    print_status "Deploying to S3..."
+    aws s3 sync apps/web/out s3://$BUCKET_NAME --delete --profile $AWS_PROFILE
+    aws s3 cp apps/web/out/index.html s3://$BUCKET_NAME/index.html --cache-control "no-cache" --profile $AWS_PROFILE
+    
+    # Invalidate CloudFront
+    print_status "Invalidating CloudFront cache..."
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name SaasTemplateCore --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text --profile $AWS_PROFILE)
+    else
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name SaasTemplateCoreDev --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text --profile $AWS_PROFILE)
+    fi
+    
+    aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*" --profile $AWS_PROFILE
+    
+    print_status "Web application deployed successfully!"
+    print_info "Your app is now available at the CloudFront distribution URL"
 fi
 
 print_status "Deployment completed successfully!"

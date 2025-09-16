@@ -143,14 +143,29 @@ jobs:
         NEXT_PUBLIC_STRIPE_PRICE_PRO: ${{ secrets.NEXT_PUBLIC_STRIPE_PRICE_PRO }}
         NEXT_PUBLIC_STRIPE_PRICE_BUSINESS: ${{ secrets.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS }}
         
-    - name: Deploy to Vercel
-      uses: amondnet/vercel-action@v25
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-        vercel-args: '--prod'
-        working-directory: ./apps/web
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        
+    - name: Get S3 bucket name
+      id: get-bucket
+      run: |
+        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name SaasTemplateCore --query 'Stacks[0].Outputs[?OutputKey==`WebHostingBucketName`].OutputValue' --output text)
+        echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+        echo "S3 Bucket: $BUCKET_NAME"
+        
+    - name: Deploy to S3
+      run: |
+        aws s3 sync apps/web/out s3://${{ steps.get-bucket.outputs.bucket_name }} --delete
+        aws s3 cp apps/web/out/index.html s3://${{ steps.get-bucket.outputs.bucket_name }}/index.html --cache-control "no-cache"
+        
+    - name: Invalidate CloudFront
+      run: |
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name SaasTemplateCore --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+        aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
 
   notify:
     needs: [deploy-infrastructure, deploy-web]

@@ -113,7 +113,7 @@ VERCEL_PROJECT_ID=your_project_id
 To verify secrets are working:
 1. Check GitHub Actions logs for authentication errors
 2. Test AWS credentials locally: `aws sts get-caller-identity`
-3. Test Vercel credentials: `vercel whoami`
+3. Test AWS S3 access: `aws s3 ls`
 4. Test Clerk credentials in your application
 
 ## Getting Required Values
@@ -135,8 +135,9 @@ To verify secrets are working:
 2. Create products and prices
 3. Copy the price IDs from the products
 
-### Vercel Credentials
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Go to "Settings" → "Tokens"
-3. Create a new token
-4. Get org and project IDs from your project settings
+### AWS Credentials (Additional)
+1. Go to AWS IAM Console
+2. Create a new user or use existing user
+3. Attach policies: `AmazonS3FullAccess`, `CloudFrontFullAccess`
+4. Create access keys and copy the values
+5. For development, create separate credentials with limited scope

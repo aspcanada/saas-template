@@ -148,6 +148,7 @@ pnpm cdk:destroy  # Destroy infrastructure
 - **Authentication**: Clerk (Next.js integration)
 - **Backend**: Node.js 22, TypeScript, Hono HTTP server
 - **Database**: DynamoDB (production) / In-memory (development)
+- **CDN**: CloudFront distribution for global content delivery
 - **Billing**: Stripe (subscriptions, checkout, customer portal)
 - **Infrastructure**: AWS CDK v2, TypeScript
 - **Package Management**: pnpm workspaces
@@ -594,7 +595,7 @@ pnpm -C infra cdk:destroy SaasTemplateCore
 | **Billing** | Mock/Stripe test | Stripe live |
 | **Logs** | Console output | CloudWatch (7-day retention) |
 | **API** | Local server (port 4000) | Lambda + API Gateway |
-| **Frontend** | Next.js dev server | Static hosting + CDN |
+| **Frontend** | Next.js dev server | S3 + CloudFront CDN |
 
 ### Development vs Production Commands
 
@@ -729,6 +730,12 @@ The project includes comprehensive deployment automation with GitHub Actions and
 ### Required GitHub Secrets
 
 See [`.github/SECRETS.md`](.github/SECRETS.md) for complete setup instructions.
+
+**Key Changes from Vercel to AWS CDN:**
+- Web app now deploys to S3 + CloudFront instead of Vercel
+- No Vercel secrets required
+- Additional AWS S3 and CloudFront permissions needed
+- CloudFront provides global CDN with custom domain support
 
 **Essential Secrets:**
 - AWS credentials (production + development)
