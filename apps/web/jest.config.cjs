@@ -26,7 +26,9 @@ const customJestConfig = {
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 10000,
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@saas-template/shared$': '<rootDir>/../../packages/shared/src/index.ts',
+    '^@saas-template/shared/(.*)$': '<rootDir>/../../packages/shared/src/$1'
   }
 };
 
