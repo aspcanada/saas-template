@@ -121,6 +121,10 @@ pnpm typecheck    # Run TypeScript type checking
 cd infra
 pnpm build        # Build CDK definitions
 pnpm typecheck    # Run TypeScript type checking
+pnpm synth        # Synthesize CDK templates
+pnpm cdk:bootstrap # Bootstrap CDK (first time only)
+pnpm cdk:deploy   # Deploy infrastructure
+pnpm cdk:destroy  # Destroy infrastructure
 ```
 
 ## Technology Stack
@@ -172,10 +176,58 @@ The web application includes:
 - **JWT token integration** with API server
 - **Responsive design** with Tailwind CSS
 
+## Infrastructure Deployment
+
+The infrastructure is defined using AWS CDK v2 and includes:
+
+- **DynamoDB Table**: On-demand billing with PK/SK and three GSIs for org-scoped data access
+- **S3 Bucket**: Private bucket for file attachments with encryption and block public access
+
+### Prerequisites
+
+- AWS CLI configured with appropriate credentials
+- AWS CDK v2 installed globally: `npm install -g aws-cdk`
+
+### Deployment Commands
+
+```bash
+# Deploy infrastructure from root directory
+pnpm -C infra cdk:deploy
+
+# Or from infra directory
+cd infra
+pnpm cdk:deploy
+```
+
+### First-time Setup
+
+```bash
+# Bootstrap CDK (only needed once per AWS account/region)
+pnpm -C infra cdk:bootstrap
+
+# Deploy the infrastructure
+pnpm -C infra cdk:deploy
+```
+
+### Infrastructure Details
+
+- **DynamoDB Table**: `saas-template-core`
+  - Primary Key: PK (string), SK (string)
+  - GSI1: Subject → Notes (`ORG#<orgId>#SUBJECT#<subjectId>` → `NOTE#<noteId>#<createdAtISO>`)
+  - GSI2: User → Notes (`ORG#<orgId>#USER#<userId>` → `NOTE#<noteId>#<createdAtISO>`)
+  - GSI3: Role/Indexing (for future admin features)
+  - Server-side encryption enabled
+  - Removal policy: DESTROY (for template)
+
+- **S3 Bucket**: `saas-template-attachments-<account>-<region>`
+  - Private access only
+  - Server-side encryption
+  - Versioning disabled
+  - Removal policy: DESTROY (for template)
+
 ## Next Steps
 
 - Implement API routes and database integration
-- Set up AWS infrastructure with CDK
 - Add testing framework and CI/CD pipeline
 - Configure deployment pipelines for each environment
 - Add user profile management
