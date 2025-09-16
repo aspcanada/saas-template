@@ -93,6 +93,15 @@ pnpm run lint
 
 # Run type checking across all workspaces
 pnpm run typecheck
+
+# Run tests across all workspaces
+pnpm run test
+
+# Run tests in watch mode
+pnpm run test:watch
+
+# Run tests with coverage
+pnpm run test:coverage
 ```
 
 ### Individual Workspace Commands
@@ -105,12 +114,18 @@ pnpm build        # Build for production
 pnpm start        # Start production server
 pnpm lint         # Run ESLint
 pnpm typecheck    # Run TypeScript type checking
+pnpm test         # Run web app tests
+pnpm test:watch   # Run tests in watch mode
+pnpm test:coverage # Run tests with coverage
 
 # API server
 cd apps/api
 pnpm dev          # Start API server on port 4000
 pnpm build        # Build TypeScript to JavaScript
 pnpm typecheck    # Run TypeScript type checking
+pnpm test         # Run API tests
+pnpm test:watch   # Run tests in watch mode
+pnpm test:coverage # Run tests with coverage
 
 # Shared package
 cd packages/shared
@@ -606,9 +621,66 @@ pnpm -C apps/web build
 # Deploy to your hosting provider (Vercel, Netlify, etc.)
 ```
 
+## Testing
+
+The project includes comprehensive testing setup with Jest and React Testing Library.
+
+### Test Structure
+
+```
+apps/
+├── api/
+│   ├── src/
+│   │   ├── __tests__/
+│   │   │   ├── setup.ts           # Test setup and mocks
+│   │   │   ├── lambda.test.ts     # Lambda function tests
+│   │   │   ├── dal.test.ts        # Data access layer tests
+│   │   │   └── integration.test.ts # Integration tests
+│   │   └── ...
+│   └── jest.config.js
+└── web/
+    ├── src/
+    │   ├── __tests__/
+    │   │   ├── billing.test.tsx   # Billing page tests
+    │   │   └── components.test.tsx # Component tests
+    │   └── ...
+    ├── jest.config.js
+    └── jest.setup.js
+```
+
+### Test Coverage
+
+- **API Tests**: Lambda functions, DAL operations, authentication, billing flows
+- **Web Tests**: React components, pages, user interactions, API integration
+- **Integration Tests**: End-to-end flows, error handling, data persistence
+
+### Running Tests
+
+```bash
+# Run all tests
+pnpm run test
+
+# Run tests in watch mode (development)
+pnpm run test:watch
+
+# Run tests with coverage report
+pnpm run test:coverage
+
+# Run tests for specific workspace
+pnpm -C apps/api test
+pnpm -C apps/web test
+```
+
+### Test Features
+
+- **Mocking**: AWS SDK, Stripe, Clerk authentication
+- **Coverage**: Comprehensive coverage reporting
+- **Type Safety**: Full TypeScript support in tests
+- **Isolation**: Each test runs in isolation with clean state
+- **CI Ready**: Configured for continuous integration
+
 ## Next Steps
 
-- Add testing framework and CI/CD pipeline
 - Configure deployment pipelines for each environment
 - Add user profile management
 - Implement role-based access control
