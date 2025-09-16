@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import fetch from "node-fetch";
+import Stripe from "stripe";
 import { Note, OrgTenantId, CreateNoteRequest, UpdateNoteRequest } from "@saas-template/shared";
 import { DalFactory } from "./dal/dal-factory";
 
@@ -24,6 +25,17 @@ interface JWTPayload {
 
 // Get DAL instance
 const notesDal = DalFactory.getNotesDal();
+
+// Initialize Stripe
+let stripe: Stripe | null = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2025-08-27.basil",
+  });
+  console.log("💳 Stripe initialized");
+} else {
+  console.warn("⚠️  STRIPE_SECRET_KEY not set. Billing features will show mock responses.");
+}
 
 // JWKS cache for Clerk
 let jwksCache: any = null;
@@ -244,13 +256,60 @@ app.post("/billing/checkout", authMiddleware, async (c: any) => {
 
     console.log(`Creating checkout for user: ${auth.userId}, org: ${auth.orgId}, priceId: ${priceId}`);
 
-    // Mock response - in a real app, this would create a Stripe checkout session
-    const mockCheckoutUrl = `https://billing.example/checkout?priceId=${priceId}&sessionId=mock_${Date.now()}&userId=${auth.userId}`;
+    // If Stripe is not configured, return mock response
+    if (!stripe) {
+      const mockCheckoutUrl = `https://billing.example/checkout?priceId=${priceId}&sessionId=mock_${Date.now()}&userId=${auth.userId}`;
+      return c.json({
+        url: mockCheckoutUrl,
+        priceId,
+        sessionId: `mock_${Date.now()}`,
+        mock: true,
+      });
+    }
+
+    // Get or create customer by orgId
+    const orgId = auth.orgId || "demo-org"; // Fallback for dev
+    let customer;
+    
+    try {
+      // List all customers and filter by metadata (in production, you'd use a more efficient approach)
+      const customers = await stripe.customers.list({ limit: 100 });
+      const existingCustomer = customers.data.find(c => c.metadata?.orgId === orgId);
+      
+      if (existingCustomer) {
+        customer = existingCustomer;
+      } else {
+        // Create new customer
+        customer = await stripe.customers.create({
+          metadata: { orgId, userId: auth.userId },
+        });
+      }
+    } catch (error) {
+      console.error("Customer lookup/creation error:", error);
+      throw new Error("Failed to get or create customer");
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.id,
+      mode: "subscription",
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: process.env.STRIPE_SUCCESS_URL || "http://localhost:3000/app/billing?success=true",
+      cancel_url: process.env.STRIPE_CANCEL_URL || "http://localhost:3000/app/billing?canceled=true",
+      metadata: {
+        orgId,
+        userId: auth.userId,
+      },
+    });
 
     return c.json({
-      url: mockCheckoutUrl,
-      priceId,
-      sessionId: `mock_${Date.now()}`,
+      url: session.url,
+      sessionId: session.id,
     });
   } catch (error) {
     console.error("Checkout error:", error);
@@ -265,12 +324,34 @@ app.post("/billing/portal", authMiddleware, async (c: any) => {
     
     console.log(`Creating portal for user: ${auth.userId}, org: ${auth.orgId}`);
 
-    // Mock response - in a real app, this would create a Stripe customer portal session
-    const mockPortalUrl = `https://billing.example/portal?customerId=mock_customer_${auth.userId}_${Date.now()}`;
+    // If Stripe is not configured, return mock response
+    if (!stripe) {
+      const mockPortalUrl = `https://billing.example/portal?customerId=mock_customer_${auth.userId}_${Date.now()}`;
+      return c.json({
+        url: mockPortalUrl,
+        customerId: `mock_customer_${auth.userId}`,
+        mock: true,
+      });
+    }
+
+    // Lookup customer by orgId
+    const orgId = auth.orgId || "demo-org"; // Fallback for dev
+    const customers = await stripe.customers.list({ limit: 100 });
+    const customer = customers.data.find(c => c.metadata?.orgId === orgId);
+
+    if (!customer) {
+      return c.json({ error: "No customer found for this organization" }, 404);
+    }
+
+    // Create billing portal session
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customer.id,
+      return_url: process.env.STRIPE_RETURN_URL || "http://localhost:3000/app/billing",
+    });
 
     return c.json({
-      url: mockPortalUrl,
-      customerId: `mock_customer_${auth.userId}`,
+      url: session.url,
+      customerId: customer.id,
     });
   } catch (error) {
     console.error("Portal error:", error);

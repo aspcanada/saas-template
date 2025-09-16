@@ -12,7 +12,19 @@ interface Plan {
   buttonText: string;
   buttonVariant: "primary" | "secondary";
   popular?: boolean;
+  priceId?: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }
+
+// Check if Stripe is configured
+const isStripeConfigured = () => {
+  return !!(
+    process.env.NEXT_PUBLIC_STRIPE_PRICE_FREE ||
+    process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO ||
+    process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS
+  );
+};
 
 const plans: Plan[] = [
   {
@@ -26,8 +38,11 @@ const plans: Plan[] = [
       "Community support",
       "1GB storage",
     ],
-    buttonText: "Choose Plan",
+    buttonText: "Current Plan",
     buttonVariant: "secondary",
+    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_FREE,
+    disabled: !process.env.NEXT_PUBLIC_STRIPE_PRICE_FREE,
+    disabledReason: "Free plan is always available",
   },
   {
     id: "pro",
@@ -45,10 +60,13 @@ const plans: Plan[] = [
     buttonText: "Choose Plan",
     buttonVariant: "primary",
     popular: true,
+    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+    disabled: !process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+    disabledReason: "Stripe not configured",
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
+    id: "business",
+    name: "Business",
     price: "$99",
     description: "For large organizations",
     features: [
@@ -62,6 +80,9 @@ const plans: Plan[] = [
     ],
     buttonText: "Choose Plan",
     buttonVariant: "secondary",
+    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS,
+    disabled: !process.env.NEXT_PUBLIC_STRIPE_PRICE_BUSINESS,
+    disabledReason: "Stripe not configured",
   },
 ];
 
@@ -69,8 +90,18 @@ export default function BillingPage() {
   const { getToken } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handleChoosePlan = async (planId: string) => {
-    setLoading(planId);
+  const handleChoosePlan = async (plan: Plan) => {
+    if (plan.disabled) {
+      alert(plan.disabledReason || "This plan is not available");
+      return;
+    }
+
+    if (!plan.priceId) {
+      alert("Price ID not configured for this plan");
+      return;
+    }
+
+    setLoading(plan.id);
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
       const token = await getToken();
@@ -81,20 +112,23 @@ export default function BillingPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ priceId: planId }),
+        body: JSON.stringify({ priceId: plan.priceId }),
       });
       
       const data = await response.json();
       
       if (response.ok && data.url) {
-        // In a real app, you'd redirect to Stripe checkout
-        alert(`Redirecting to checkout: ${data.url}`);
-        // window.location.href = data.url;
+        if (data.mock) {
+          alert(`Mock checkout URL: ${data.url}\n\nIn production, this would redirect to Stripe checkout.`);
+        } else {
+          // Redirect to real Stripe checkout
+          window.location.href = data.url;
+        }
       } else if (response.status === 401) {
         console.error("Authentication failed. Please sign in again.");
         alert("Authentication failed. Please sign in again.");
       } else {
-        alert("Failed to create checkout session");
+        alert(`Failed to create checkout session: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Failed to create checkout session:", error);
@@ -121,14 +155,17 @@ export default function BillingPage() {
       const data = await response.json();
       
       if (response.ok && data.url) {
-        // In a real app, you'd redirect to Stripe customer portal
-        alert(`Redirecting to billing portal: ${data.url}`);
-        // window.location.href = data.url;
+        if (data.mock) {
+          alert(`Mock billing portal URL: ${data.url}\n\nIn production, this would redirect to Stripe customer portal.`);
+        } else {
+          // Redirect to real Stripe customer portal
+          window.location.href = data.url;
+        }
       } else if (response.status === 401) {
         console.error("Authentication failed. Please sign in again.");
         alert("Authentication failed. Please sign in again.");
       } else {
-        alert("Failed to create portal session");
+        alert(`Failed to create portal session: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Failed to create portal session:", error);
@@ -147,12 +184,29 @@ export default function BillingPage() {
         </p>
       </div>
 
+      {/* Stripe Configuration Status */}
+      {!isStripeConfigured() && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+          <div className="flex items-center">
+            <svg className="w-5 h-5 text-yellow-600 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800">Stripe Not Configured</h3>
+              <p className="text-yellow-700">
+                Billing features are in demo mode. To enable real payments, configure Stripe environment variables.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Current Plan Status */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-blue-900">Current Plan</h3>
-            <p className="text-blue-700">You're currently on the Free plan</p>
+            <p className="text-blue-700">You&apos;re currently on the Free plan</p>
           </div>
           <button
             onClick={handleManageBilling}
@@ -212,12 +266,13 @@ export default function BillingPage() {
             </ul>
 
             <button
-              onClick={() => handleChoosePlan(plan.id)}
-              disabled={loading === plan.id}
+              onClick={() => handleChoosePlan(plan)}
+              disabled={loading === plan.id || plan.disabled}
+              title={plan.disabled ? plan.disabledReason : undefined}
               className={`w-full py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 ${
                 plan.buttonVariant === "primary"
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                  : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
+                  : "bg-gray-200 text-gray-900 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
               }`}
             >
               {loading === plan.id ? "Processing..." : plan.buttonText}

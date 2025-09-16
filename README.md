@@ -131,7 +131,9 @@ pnpm cdk:destroy  # Destroy infrastructure
 
 - **Frontend**: Next.js 14, React 19, TypeScript, Tailwind CSS
 - **Authentication**: Clerk (Next.js integration)
-- **Backend**: Node.js 22, TypeScript, AWS Lambda
+- **Backend**: Node.js 22, TypeScript, Hono HTTP server
+- **Database**: DynamoDB (production) / In-memory (development)
+- **Billing**: Stripe (subscriptions, checkout, customer portal)
 - **Infrastructure**: AWS CDK v2, TypeScript
 - **Package Management**: pnpm workspaces
 - **Code Quality**: ESLint, Prettier, TypeScript strict mode
@@ -157,14 +159,19 @@ The API server (`apps/api`) includes:
 
 ### API Endpoints
 
+**Health & Auth**:
 - `GET /health` - Health check (public)
-- `GET /notes` - Get all notes (protected)
-- `POST /notes` - Create note (protected)
-- `GET /notes/:id` - Get specific note (protected)
-- `PATCH /notes/:id` - Update note (protected)
-- `DELETE /notes/:id` - Delete note (protected)
-- `POST /billing/checkout` - Create checkout session (protected)
-- `POST /billing/portal` - Create customer portal session (protected)
+
+**Notes Management** (protected):
+- `GET /notes` - Get all notes
+- `POST /notes` - Create note
+- `GET /notes/:id` - Get specific note
+- `PATCH /notes/:id` - Update note
+- `DELETE /notes/:id` - Delete note
+
+**Billing Management** (protected):
+- `POST /billing/checkout` - Create Stripe checkout session
+- `POST /billing/portal` - Create Stripe customer portal session
 
 ## Authentication Features
 
@@ -225,10 +232,92 @@ pnpm -C infra cdk:deploy
   - Versioning disabled
   - Removal policy: DESTROY (for template)
 
+## Billing Integration
+
+The template includes full Stripe billing integration with subscription management:
+
+### Features
+
+- **Subscription Checkout**: Create Stripe checkout sessions for plan upgrades
+- **Customer Portal**: Manage subscriptions, payment methods, and billing history
+- **Plan Management**: Free, Pro, and Business tiers with environment-configurable pricing
+- **Development Mode**: Works without Stripe configuration using mock responses
+
+### Stripe Setup
+
+1. **Create a Stripe account**:
+   - Go to [https://dashboard.stripe.com](https://dashboard.stripe.com)
+   - Sign up or sign in to your account
+
+2. **Create products and prices**:
+   - Create products for Free, Pro, and Business plans
+   - Note down the Price IDs for each plan
+
+3. **Configure environment variables**:
+   
+   **For the API server** (`apps/api/.env.local`):
+   ```bash
+   # Stripe configuration
+   STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+   STRIPE_PRICE_FREE=price_free_plan_id
+   STRIPE_PRICE_PRO=price_pro_plan_id
+   STRIPE_PRICE_BUSINESS=price_business_plan_id
+   
+   # Optional: Custom URLs (defaults to localhost)
+   STRIPE_SUCCESS_URL=http://localhost:3000/app/billing?success=true
+   STRIPE_CANCEL_URL=http://localhost:3000/app/billing?canceled=true
+   STRIPE_RETURN_URL=http://localhost:3000/app/billing
+   ```
+   
+   **For the web app** (`apps/web/.env.local`):
+   ```bash
+   # Stripe Price IDs (public)
+   NEXT_PUBLIC_STRIPE_PRICE_FREE=price_free_plan_id
+   NEXT_PUBLIC_STRIPE_PRICE_PRO=price_pro_plan_id
+   NEXT_PUBLIC_STRIPE_PRICE_BUSINESS=price_business_plan_id
+   ```
+
+### Billing API Endpoints
+
+- `POST /billing/checkout` - Create checkout session for plan upgrade
+- `POST /billing/portal` - Create customer portal session for subscription management
+
+### Development vs Production
+
+**Development Mode** (no Stripe config):
+- Shows "Stripe not configured" message
+- Plan buttons are disabled with tooltips
+- Mock responses for testing billing flow
+- `pnpm run dev` works out of the box
+
+**Production Mode** (with Stripe config):
+- Real Stripe checkout and portal sessions
+- Customer management by organization ID
+- Full subscription lifecycle management
+
+### Testing Billing
+
+1. **Without Stripe** (default):
+   ```bash
+   pnpm run dev
+   # Visit http://localhost:3000/app/billing
+   # See mock billing interface
+   ```
+
+2. **With Stripe** (configured):
+   ```bash
+   # Set environment variables in both apps
+   pnpm run dev
+   # Visit http://localhost:3000/app/billing
+   # Test real Stripe checkout flow
+   ```
+
 ## Next Steps
 
-- Implement API routes and database integration
 - Add testing framework and CI/CD pipeline
 - Configure deployment pipelines for each environment
 - Add user profile management
 - Implement role-based access control
+- Add webhook handlers for Stripe events
+- Implement usage tracking and plan limits
+- Add admin dashboard for subscription management
