@@ -1,5 +1,5 @@
 // Test setup for API tests
-import { jest } from '@jest/globals';
+// Jest globals are available in test environment
 
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-dynamodb', () => ({

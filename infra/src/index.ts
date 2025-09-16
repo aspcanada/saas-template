@@ -174,7 +174,7 @@ export class ApiStack extends Stack {
 
   private createLambdaFunction(name: string, handler: string): NodejsFunction {
     const lambdaFunction = new NodejsFunction(this, name, {
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_22_X,
       entry: "../apps/api/src/lambda.ts",
       handler: handler,
       environment: {

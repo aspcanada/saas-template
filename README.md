@@ -16,7 +16,7 @@ saas-template/
 ├── tsconfig.base.json       # Base TypeScript configuration
 ├── .editorconfig            # Editor configuration
 ├── .gitignore              # Git ignore rules
-└── .nvmrc                  # Node.js version specification (20)
+└── .nvmrc                  # Node.js version specification (22)
 ```
 
 ## Workspaces
@@ -30,7 +30,7 @@ saas-template/
 
 ### Prerequisites
 
-- Node.js 20 (specified in `.nvmrc`)
+- Node.js 22 (specified in `.nvmrc`)
 - pnpm package manager
 - Clerk account (for authentication)
 
@@ -267,7 +267,7 @@ pnpm -C infra cdk:deploy SaasTemplateApi
   - Removal policy: DESTROY (for template)
 
 - **Lambda Functions**:
-  - Runtime: Node.js 20.x
+  - Runtime: Node.js 22.x
   - CloudWatch log retention: 7 days (free tier optimization)
   - Pay-per-request pricing
   - Auto-scaling based on demand
