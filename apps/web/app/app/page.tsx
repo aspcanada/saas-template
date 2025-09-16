@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { ALL_ROLES } from "../../../../packages/shared/src/roles";
+import FileUploader from "../../src/components/FileUploader";
 
 export default async function AppPage() {
   const { userId } = await auth();
@@ -28,13 +29,20 @@ export default async function AppPage() {
             </p>
           </div>
         </div>
-        <div className="mt-6">
-          <a
-            href="/app/notes"
-            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            📝 Notes
-          </a>
+        <div className="mt-6 space-y-6">
+          <div>
+            <a
+              href="/app/notes"
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              📝 Notes
+            </a>
+          </div>
+          
+          <div className="border-t pt-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">File Upload</h2>
+            <FileUploader />
+          </div>
         </div>
       </div>
     </div>

@@ -4,6 +4,9 @@ import { serve } from "@hono/node-server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import fetch from "node-fetch";
 import Stripe from "stripe";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { v4 as uuidv4 } from "uuid";
 import { Note, OrgTenantId, CreateNoteRequest, UpdateNoteRequest } from "@saas-template/shared";
 import { DalFactory } from "./dal/dal-factory";
 
@@ -35,6 +38,17 @@ if (process.env.STRIPE_SECRET_KEY) {
   console.log("💳 Stripe initialized");
 } else {
   console.warn("⚠️  STRIPE_SECRET_KEY not set. Billing features will show mock responses.");
+}
+
+// Initialize S3
+let s3Client: S3Client | null = null;
+let s3BucketName: string | null = null;
+if (process.env.BUCKET_NAME && process.env.AWS_REGION) {
+  s3Client = new S3Client({ region: process.env.AWS_REGION });
+  s3BucketName = process.env.BUCKET_NAME;
+  console.log(`📁 S3 initialized with bucket: ${s3BucketName}`);
+} else {
+  console.warn("⚠️  BUCKET_NAME or AWS_REGION not set. File upload features will be disabled.");
 }
 
 // JWKS cache for Clerk
@@ -359,6 +373,82 @@ app.post("/billing/portal", authMiddleware, async (c: any) => {
   }
 });
 
+// File upload endpoints (protected)
+// POST /attachments/presign - Generate presigned URL for file upload
+app.post("/attachments/presign", authMiddleware, async (c: any) => {
+  try {
+    const auth = c.get("auth") as AuthUser;
+    const body = await c.req.json();
+    const { contentType, maxSize = 5 * 1024 * 1024 } = body; // Default 5MB
+
+    if (!contentType) {
+      return c.json({ error: "contentType is required" }, 400);
+    }
+
+    // Validate content type (basic validation)
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png", 
+      "image/gif",
+      "image/webp",
+      "application/pdf",
+      "text/plain",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    
+    if (!allowedTypes.includes(contentType)) {
+      return c.json({ 
+        error: "Invalid content type. Allowed types: " + allowedTypes.join(", ") 
+      }, 400);
+    }
+
+    // Validate max size (5MB demo limit)
+    if (maxSize > 5 * 1024 * 1024) {
+      return c.json({ 
+        error: "File size too large. Maximum allowed: 5MB" 
+      }, 400);
+    }
+
+    console.log(`Generating presigned URL for user: ${auth.userId}, org: ${auth.orgId}, type: ${contentType}`);
+
+    // If S3 is not configured, return error
+    if (!s3Client || !s3BucketName) {
+      return c.json({ 
+        error: "File upload not configured. BUCKET_NAME and AWS_REGION environment variables are required." 
+      }, 400);
+    }
+
+    // Generate unique key: orgId/userId/uuid
+    const orgId = auth.orgId || "demo-org";
+    const fileId = uuidv4();
+    const key = `${orgId}/${auth.userId}/${fileId}`;
+
+    // Create presigned URL for PUT operation
+    const command = new PutObjectCommand({
+      Bucket: s3BucketName,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: maxSize,
+    });
+
+    const presignedUrl = await getSignedUrl(s3Client, command, { 
+      expiresIn: 300 // 5 minutes
+    });
+
+    return c.json({
+      url: presignedUrl,
+      key,
+      fields: {
+        "Content-Type": contentType,
+      },
+    });
+  } catch (error) {
+    console.error("Presign error:", error);
+    return c.json({ error: "Failed to generate presigned URL" }, 500);
+  }
+});
+
 // Start server
 const port = process.env.PORT || 4000;
 
@@ -366,6 +456,7 @@ console.log(`🚀 API server starting on port ${port}`);
 console.log(`📝 Health check: http://localhost:${port}/health`);
 console.log(`📋 Notes API: http://localhost:${port}/notes`);
 console.log(`💳 Billing API: http://localhost:${port}/billing`);
+console.log(`📁 Attachments API: http://localhost:${port}/attachments`);
 
 // Check for required environment variables
 if (!process.env.CLERK_JWKS_URL) {
