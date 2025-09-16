@@ -70,6 +70,7 @@ jobs:
       with:
         files: ./apps/*/coverage/lcov.info
         fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   deploy-infrastructure:
     needs: test
