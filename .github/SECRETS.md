@@ -121,8 +121,20 @@ To verify secrets are working:
 ### AWS Credentials
 1. Go to AWS IAM Console
 2. Create a new user or use existing user
-3. Attach policies: `AmazonDynamoDBFullAccess`, `AmazonS3FullAccess`, `AWSLambdaFullAccess`, `AmazonAPIGatewayAdministrator`
+3. Attach these minimal policies:
+   - `AmazonDynamoDBFullAccess` (for DynamoDB table creation)
+   - `AmazonS3FullAccess` (for S3 buckets and CloudFront)
+   - `AWSLambdaFullAccess` (for Lambda functions)
+   - `AmazonAPIGatewayAdministrator` (for API Gateway)
+   - `CloudFrontFullAccess` (for CloudFront distribution)
+   - `IAMFullAccess` (for Lambda execution roles)
+   - `CloudFormationFullAccess` (CDK uses CloudFormation under the hood)
 4. Create access keys and copy the values
+
+**Why these permissions?**
+- CDK needs to create/modify AWS resources
+- GitHub Actions uses these credentials to run `cdk deploy`
+- Without these permissions, deployment will fail
 
 ### Clerk Credentials
 1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
@@ -134,10 +146,3 @@ To verify secrets are working:
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
 2. Create products and prices
 3. Copy the price IDs from the products
-
-### AWS Credentials (Additional)
-1. Go to AWS IAM Console
-2. Create a new user or use existing user
-3. Attach policies: `AmazonS3FullAccess`, `CloudFrontFullAccess`
-4. Create access keys and copy the values
-5. For development, create separate credentials with limited scope
