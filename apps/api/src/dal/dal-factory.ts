@@ -32,7 +32,14 @@ export class DalFactory {
       
       case "dynamo":
       case "dynamodb":
-        return new DynamoNotesDal();
+        try {
+          return new DynamoNotesDal();
+        } catch (error) {
+          console.error(`❌ Failed to initialize DynamoDB DAL: ${error instanceof Error ? error.message : "Unknown error"}`);
+          console.error("💡 Make sure to set AWS_REGION and TABLE_NAME environment variables");
+          console.error("💡 Falling back to in-memory DAL for development");
+          return new InMemoryNotesDal();
+        }
       
       default:
         console.warn(`⚠️  Unknown DAL type: ${dalType}. Falling back to inmemory.`);

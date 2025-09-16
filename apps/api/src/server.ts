@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import fetch from "node-fetch";
-import { Note, CreateNoteRequest, UpdateNoteRequest, OrgTenantId } from "@saas-template/shared";
+import { Note, OrgTenantId, CreateNoteRequest, UpdateNoteRequest } from "@saas-template/shared";
 import { DalFactory } from "./dal/dal-factory";
 
 // Note: Types are now imported from @saas-template/shared
@@ -190,7 +190,9 @@ app.patch("/notes/:id", authMiddleware, async (c: any) => {
     const updatedNote = await notesDal.updateNote({
       orgId: auth.orgId,
       noteId: id,
-      updates: body,
+      title: body.title,
+      content: body.content,
+      subjectId: body.subjectId,
     });
     
     if (!updatedNote) {

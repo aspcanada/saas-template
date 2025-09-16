@@ -56,6 +56,7 @@ export interface NotesDal {
     noteId: string;
     title?: string;
     content?: string;
+    subjectId?: string;
   }): Promise<Note | null>;
 
   /**

@@ -69,6 +69,7 @@ export class InMemoryNotesDal implements NotesDal {
     noteId: string;
     title?: string;
     content?: string;
+    subjectId?: string;
   }): Promise<Note | null> {
     const key = KeyBuilders.noteKey(params.orgId, params.noteId);
     const existing = this.notesStore.get(key);

@@ -19,6 +19,17 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface CreateNoteRequest {
+  title: string;
+  content: string;
+  subjectId?: string;
+}
+
+export interface UpdateNoteRequest {
+  title?: string;
+  content?: string;
+  subjectId?: string;
+}
 
 // Organization and tenant types
 export type OrgTenantId = string;
