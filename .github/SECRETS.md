@@ -7,12 +7,12 @@ This document outlines the required GitHub secrets for automated deployment.
 ### AWS Credentials (Production)
 - `AWS_ACCESS_KEY_ID` - AWS access key for production
 - `AWS_SECRET_ACCESS_KEY` - AWS secret key for production
-- `AWS_REGION` - AWS region (default: us-east-1)
+- `AWS_REGION` - AWS region (default: ca-central-1)
 
 ### AWS Credentials (Development)
 - `AWS_ACCESS_KEY_ID_DEV` - AWS access key for development
 - `AWS_SECRET_ACCESS_KEY_DEV` - AWS secret key for development
-- `AWS_REGION_DEV` - AWS region for development (default: us-east-1)
+- `AWS_REGION_DEV` - AWS region for development (default: ca-central-1)
 - `AWS_ACCOUNT_ID_DEV` - AWS account ID for development
 
 ### Clerk Authentication
@@ -55,7 +55,7 @@ For environment-specific secrets:
 # AWS
 AWS_ACCESS_KEY_ID=your_production_access_key
 AWS_SECRET_ACCESS_KEY=your_production_secret_key
-AWS_REGION=us-east-1
+AWS_REGION=ca-central-1
 
 # Clerk
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -76,7 +76,7 @@ VERCEL_PROJECT_ID=your_project_id
 # AWS
 AWS_ACCESS_KEY_ID_DEV=your_dev_access_key
 AWS_SECRET_ACCESS_KEY_DEV=your_dev_secret_key
-AWS_REGION_DEV=us-east-1
+AWS_REGION_DEV=ca-central-1
 AWS_ACCOUNT_ID_DEV=123456789012
 
 # Clerk

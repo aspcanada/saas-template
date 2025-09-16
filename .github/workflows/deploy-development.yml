@@ -98,7 +98,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
-        aws-region: ${{ secrets.AWS_REGION_DEV || 'us-east-1' }}
+        aws-region: ${{ secrets.AWS_REGION_DEV || 'ca-central-1' }}
         
     - name: Install AWS CDK
       run: npm install -g aws-cdk
@@ -109,13 +109,13 @@ jobs:
     - name: Deploy CoreStack (Development)
       run: pnpm -C infra cdk:deploy SaasTemplateCoreDev --require-approval never
       env:
-        CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION_DEV || 'us-east-1' }}
+        CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION_DEV || 'ca-central-1' }}
         CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
         
     - name: Deploy ApiStack (Development)
       run: pnpm -C infra cdk:deploy SaasTemplateApiDev --require-approval never
       env:
-        CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION_DEV || 'us-east-1' }}
+        CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION_DEV || 'ca-central-1' }}
         CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID_DEV }}
         
     - name: Get API URL
@@ -161,7 +161,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
-        aws-region: ${{ secrets.AWS_REGION_DEV || 'us-east-1' }}
+        aws-region: ${{ secrets.AWS_REGION_DEV || 'ca-central-1' }}
         
     - name: Get S3 bucket name
       id: get-bucket
@@ -193,7 +193,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
-        aws-region: ${{ secrets.AWS_REGION_DEV || 'us-east-1' }}
+        aws-region: ${{ secrets.AWS_REGION_DEV || 'ca-central-1' }}
         
     - name: Cleanup PR resources
       run: |
