@@ -9,6 +9,7 @@ import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { HttpApi, HttpMethod, CorsHttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
 
 export class CoreStack extends Stack {
@@ -18,7 +19,7 @@ export class CoreStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // DynamoDB table with on-demand billing
+    // DynamoDB table with on-demand billing (free tier optimized)
     this.table = new Table(this, "CoreTable", {
       tableName: process.env.DYNAMO_TABLE_NAME || "saas-template-core",
       partitionKey: {
@@ -32,6 +33,7 @@ export class CoreStack extends Stack {
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.DESTROY,
       encryption: TableEncryption.AWS_MANAGED,
+      pointInTimeRecovery: false, // Disabled for free tier optimization
     });
 
     // GSI1: subject → notes
@@ -79,12 +81,12 @@ export class CoreStack extends Stack {
       },
     });
 
-    // S3 bucket for attachments
+    // S3 bucket for attachments (free tier optimized)
     this.bucket = new Bucket(this, "AttachmentsBucket", {
       bucketName: `saas-template-attachments-${this.account}-${this.region}`,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       encryption: BucketEncryption.S3_MANAGED,
-      versioned: false,
+      versioned: false, // Versioning disabled for free tier optimization
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
@@ -171,7 +173,7 @@ export class ApiStack extends Stack {
   }
 
   private createLambdaFunction(name: string, handler: string): NodejsFunction {
-    return new NodejsFunction(this, name, {
+    const lambdaFunction = new NodejsFunction(this, name, {
       runtime: Runtime.NODEJS_20_X,
       entry: "../apps/api/src/lambda.ts",
       handler: handler,
@@ -184,7 +186,17 @@ export class ApiStack extends Stack {
         externalModules: ["aws-sdk"],
         nodeModules: ["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb", "@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
       },
+      logRetention: RetentionDays.ONE_WEEK, // 7 days retention for free tier optimization
     });
+
+    // Create explicit log group with 7-day retention
+    new LogGroup(this, `${name}LogGroup`, {
+      logGroupName: `/aws/lambda/${lambdaFunction.functionName}`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
+    return lambdaFunction;
   }
 
   private grantPermissions(functions: NodejsFunction[], coreStack: CoreStack): void {
@@ -272,3 +284,11 @@ export class ApiStack extends Stack {
     });
   }
 }
+
+// Future CloudFront configuration notes:
+// When adding CloudFront distribution:
+// - Use Origin Access Control (OAC) for S3 bucket access
+// - Set low TTLs for cache optimization (e.g., 0-300 seconds for API responses)
+// - Configure custom error pages for SPA routing
+// - Enable compression and HTTP/2
+// - Set up proper cache behaviors for static assets vs API calls

@@ -240,14 +240,38 @@ pnpm -C infra cdk:deploy SaasTemplateApi
   - GSI1: Subject → Notes (`ORG#<orgId>#SUBJECT#<subjectId>` → `NOTE#<noteId>#<createdAtISO>`)
   - GSI2: User → Notes (`ORG#<orgId>#USER#<userId>` → `NOTE#<noteId>#<createdAtISO>`)
   - GSI3: Role/Indexing (for future admin features)
+  - Billing: On-demand (pay-per-request)
+  - Point-in-time recovery: Disabled (free tier optimization)
   - Server-side encryption enabled
   - Removal policy: DESTROY (for template)
 
 - **S3 Bucket**: `saas-template-attachments-<account>-<region>`
   - Private access only
   - Server-side encryption
-  - Versioning disabled
+  - Versioning: Disabled (free tier optimization)
   - Removal policy: DESTROY (for template)
+
+- **Lambda Functions**:
+  - Runtime: Node.js 20.x
+  - CloudWatch log retention: 7 days (free tier optimization)
+  - Pay-per-request pricing
+  - Auto-scaling based on demand
+
+- **API Gateway**:
+  - HTTP API (v2) for better performance and cost
+  - CORS enabled for web app integration
+  - Pay-per-request pricing
+  - Auto-scaling based on demand
+
+### Free Tier Optimizations
+
+The infrastructure is optimized for AWS free tier usage:
+
+- **DynamoDB**: On-demand billing with PITR disabled
+- **S3**: Versioning disabled to minimize storage costs
+- **Lambda**: 7-day log retention to stay within free tier limits
+- **API Gateway**: HTTP API v2 for lower costs than REST API
+- **CloudWatch**: Minimal log retention to avoid charges
 
 ## Billing Integration
 
@@ -517,6 +541,70 @@ The system includes a secure webhook handler that processes Stripe events:
    # Visit http://localhost:3000/app/billing
    # Test real Stripe checkout flow
    ```
+
+## Free Tier Optimization
+
+### AWS Free Tier Checklist
+
+To stay within AWS free tier limits during development:
+
+✅ **Development Mode**:
+- Keep `DAL=inmemory` in `apps/api/.env.local` to avoid AWS calls during development
+- Use small test data sets (limit to 10-20 notes per test)
+- Run `pnpm run dev` for local development (no AWS resources used)
+
+✅ **Infrastructure Optimizations**:
+- DynamoDB: On-demand billing with PITR disabled
+- S3: Versioning disabled, minimal storage usage
+- Lambda: 7-day CloudWatch log retention
+- API Gateway: Pay-per-request pricing
+
+✅ **Cleanup Commands**:
+```bash
+# Clean up S3 bucket before destroying infrastructure
+aws s3 rm s3://your-bucket-name --recursive
+
+# Destroy stacks in order (ApiStack first, then CoreStack)
+pnpm -C infra cdk:destroy SaasTemplateApi
+pnpm -C infra cdk:destroy SaasTemplateCore
+```
+
+### Environment Matrices
+
+| Component | Development | Production |
+|-----------|-------------|------------|
+| **Database** | In-memory (DAL=inmemory) | DynamoDB (DAL=dynamo) |
+| **Storage** | Local filesystem | S3 bucket |
+| **Authentication** | Clerk test keys | Clerk live keys |
+| **Billing** | Mock/Stripe test | Stripe live |
+| **Logs** | Console output | CloudWatch (7-day retention) |
+| **API** | Local server (port 4000) | Lambda + API Gateway |
+| **Frontend** | Next.js dev server | Static hosting + CDN |
+
+### Development vs Production Commands
+
+**Local Development** (Free tier friendly):
+```bash
+# Single command to start everything
+pnpm run dev
+
+# This starts:
+# - Next.js app on http://localhost:3000
+# - API server on http://localhost:4000
+# - Uses in-memory database (no AWS calls)
+# - Uses mock billing (no Stripe calls)
+```
+
+**Production Deployment**:
+```bash
+# Deploy infrastructure
+pnpm -C infra cdk:deploy SaasTemplateCore
+pnpm -C infra cdk:deploy SaasTemplateApi
+
+# Build and deploy web app
+pnpm -C apps/web build
+# Deploy to your hosting provider (Vercel, Netlify, etc.)
+```
 
 ## Next Steps
 
