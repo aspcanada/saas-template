@@ -185,26 +185,40 @@ The web application includes:
 
 ## Infrastructure Deployment
 
-The infrastructure is defined using AWS CDK v2 and includes:
+The infrastructure is defined using AWS CDK v2 and includes two stacks:
 
+### CoreStack
 - **DynamoDB Table**: On-demand billing with PK/SK and three GSIs for org-scoped data access
 - **S3 Bucket**: Private bucket for file attachments with encryption and block public access
+
+### ApiStack
+- **API Gateway**: HTTP API with CORS for web domain
+- **Lambda Functions**: Node.js functions for notes, billing, and attachments
+- **Permissions**: Least-privilege access to DynamoDB and S3
 
 ### Prerequisites
 
 - AWS CLI configured with appropriate credentials
 - AWS CDK v2 installed globally: `npm install -g aws-cdk`
 
-### Deployment Commands
+### Deployment Order
 
+**Important**: Deploy stacks in this specific order:
+
+1. **Deploy CoreStack first**:
 ```bash
-# Deploy infrastructure from root directory
-pnpm -C infra cdk:deploy
-
-# Or from infra directory
-cd infra
-pnpm cdk:deploy
+pnpm -C infra cdk:deploy SaasTemplateCore
 ```
+
+2. **Deploy ApiStack**:
+```bash
+pnpm -C infra cdk:deploy SaasTemplateApi
+```
+
+3. **Update web app environment**:
+   - Get the API URL from the ApiStack outputs
+   - Update `NEXT_PUBLIC_API_BASE_URL` in `apps/web/.env.local`
+   - Rebuild the web app: `pnpm -C apps/web build`
 
 ### First-time Setup
 
@@ -212,8 +226,11 @@ pnpm cdk:deploy
 # Bootstrap CDK (only needed once per AWS account/region)
 pnpm -C infra cdk:bootstrap
 
-# Deploy the infrastructure
-pnpm -C infra cdk:deploy
+# Deploy CoreStack
+pnpm -C infra cdk:deploy SaasTemplateCore
+
+# Deploy ApiStack
+pnpm -C infra cdk:deploy SaasTemplateApi
 ```
 
 ### Infrastructure Details
@@ -284,13 +301,27 @@ The template includes full Stripe billing integration with subscription manageme
 
 ### Development vs Production
 
-**Development Mode** (no Stripe config):
+**Local Development** (`pnpm run dev`):
+- Uses HTTP server on port 4000
+- Direct database access (DynamoDB or in-memory)
+- Real-time development with hot reload
+- No AWS Lambda cold starts
+
+**Production Deployment** (Lambda + API Gateway):
+- Serverless Lambda functions
+- API Gateway for HTTP routing
+- DynamoDB and S3 integration
+- Auto-scaling and pay-per-request
+
+**Billing Configuration**:
+
+*Development Mode* (no Stripe config):
 - Shows "Stripe not configured" message
 - Plan buttons are disabled with tooltips
 - Mock responses for testing billing flow
 - `pnpm run dev` works out of the box
 
-**Production Mode** (with Stripe config):
+*Production Mode* (with Stripe config):
 - Real Stripe checkout and portal sessions
 - Customer management by organization ID
 - Full subscription lifecycle management
