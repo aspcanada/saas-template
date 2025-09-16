@@ -18,7 +18,7 @@ interface Plan {
 }
 
 interface Entitlement {
-  plan: "FREE" | "CLINIC" | "PRACTICE_PLUS";
+  plan: "FREE" | "PRO" | "BUSINESS";
   status: string;
   currentPeriodEnd: number | null;
   mock?: boolean;
@@ -138,8 +138,8 @@ export default function BillingPage() {
   const getPlanDisplayName = (plan: string) => {
     switch (plan) {
       case "FREE": return "Free";
-      case "CLINIC": return "Pro";
-      case "PRACTICE_PLUS": return "Business";
+      case "PRO": return "Pro";
+      case "BUSINESS": return "Business";
       default: return plan;
     }
   };
@@ -149,8 +149,8 @@ export default function BillingPage() {
     return plans.find(plan => {
       switch (entitlement.plan) {
         case "FREE": return plan.id === "free";
-        case "CLINIC": return plan.id === "pro";
-        case "PRACTICE_PLUS": return plan.id === "business";
+        case "PRO": return plan.id === "pro";
+        case "BUSINESS": return plan.id === "business";
         default: return false;
       }
     });

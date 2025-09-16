@@ -262,38 +262,189 @@ The template includes full Stripe billing integration with subscription manageme
 
 ### Stripe Setup
 
+#### Step 1: Create Stripe Account and Get API Keys
+
 1. **Create a Stripe account**:
    - Go to [https://dashboard.stripe.com](https://dashboard.stripe.com)
    - Sign up or sign in to your account
+   - Complete the account setup process
 
-2. **Create products and prices**:
-   - Create products for Free, Pro, and Business plans
-   - Note down the Price IDs for each plan
+2. **Get your API keys**:
+   - In the Stripe Dashboard, go to **Developers** → **API keys**
+   - Copy your **Publishable key** (starts with `pk_test_`)
+   - Copy your **Secret key** (starts with `sk_test_`)
+   - **Important**: Keep your secret key secure and never commit it to version control
 
-3. **Configure environment variables**:
-   
-   **For the API server** (`apps/api/.env.local`):
-   ```bash
+#### Step 2: Create Products and Prices
+
+1. **Navigate to Products**:
+   - In the Stripe Dashboard, go to **Products** → **Products**
+   - Click **"Add product"**
+
+2. **Create Free Plan** (Optional - for consistency):
+   - **Name**: "Free Plan"
+   - **Description**: "Perfect for getting started"
+   - **Pricing model**: One-time
+   - **Price**: $0.00
+   - Click **"Save product"**
+   - Copy the **Price ID** (starts with `price_`)
+
+3. **Create Pro Plan**:
+   - **Name**: "Pro Plan"
+   - **Description**: "For growing teams"
+   - **Pricing model**: Recurring
+   - **Price**: $29.00
+   - **Billing period**: Monthly
+   - Click **"Save product"**
+   - Copy the **Price ID** (starts with `price_`)
+
+4. **Create Business Plan**:
+   - **Name**: "Business Plan"
+   - **Description**: "For large organizations"
+   - **Pricing model**: Recurring
+   - **Price**: $99.00
+   - **Billing period**: Monthly
+   - Click **"Save product"**
+   - Copy the **Price ID** (starts with `price_`)
+
+#### Step 3: Set Up Webhooks (Production)
+
+1. **Create Webhook Endpoint**:
+   - In the Stripe Dashboard, go to **Developers** → **Webhooks**
+   - Click **"Add endpoint"**
+   - **Endpoint URL**: `https://your-api-domain.com/billing/webhook`
+   - **Events to send**: Select these events:
+     - `checkout.session.completed`
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+   - Click **"Add endpoint"**
+
+2. **Get Webhook Secret**:
+   - Click on your newly created webhook endpoint
+   - In the **Signing secret** section, click **"Reveal"**
+   - Copy the **Signing secret** (starts with `whsec_`)
+
+#### Step 4: Configure Environment Variables
+
+**For the API server** (`apps/api/.env.local`):
+```bash
 # Stripe configuration
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 STRIPE_PRICE_FREE=price_free_plan_id
 STRIPE_PRICE_PRO=price_pro_plan_id
 STRIPE_PRICE_BUSINESS=price_business_plan_id
-   
-   # Optional: Custom URLs (defaults to localhost)
-   STRIPE_SUCCESS_URL=http://localhost:3000/app/billing?success=true
-   STRIPE_CANCEL_URL=http://localhost:3000/app/billing?canceled=true
-   STRIPE_RETURN_URL=http://localhost:3000/app/billing
-   ```
-   
-   **For the web app** (`apps/web/.env.local`):
+
+# Optional: Custom URLs (defaults to localhost)
+STRIPE_SUCCESS_URL=http://localhost:3000/app/billing?success=true
+STRIPE_CANCEL_URL=http://localhost:3000/app/billing?canceled=true
+STRIPE_RETURN_URL=http://localhost:3000/app/billing
+```
+
+**For the web app** (`apps/web/.env.local`):
+```bash
+# Stripe Price IDs (public)
+NEXT_PUBLIC_STRIPE_PRICE_FREE=price_free_plan_id
+NEXT_PUBLIC_STRIPE_PRICE_PRO=price_pro_plan_id
+NEXT_PUBLIC_STRIPE_PRICE_BUSINESS=price_business_plan_id
+```
+
+#### Step 5: Test Your Integration
+
+1. **Start the development server**:
    ```bash
-   # Stripe Price IDs (public)
-   NEXT_PUBLIC_STRIPE_PRICE_FREE=price_free_plan_id
-   NEXT_PUBLIC_STRIPE_PRICE_PRO=price_pro_plan_id
-   NEXT_PUBLIC_STRIPE_PRICE_BUSINESS=price_business_plan_id
+   pnpm run dev
    ```
+
+2. **Test the billing flow**:
+   - Visit `http://localhost:3000/app/billing`
+   - You should see the pricing plans without the "Stripe not configured" warning
+   - Click on a paid plan to test the checkout flow
+   - Use Stripe's test card numbers:
+     - **Success**: `4242 4242 4242 4242`
+     - **Decline**: `4000 0000 0000 0002`
+     - **3D Secure**: `4000 0025 0000 3155`
+
+3. **Test webhook events** (Development):
+   - Install Stripe CLI: `brew install stripe/stripe-cli/stripe` (macOS) or see [Stripe CLI docs](https://stripe.com/docs/stripe-cli)
+   - Login to Stripe: `stripe login`
+   - Forward webhooks to local server: `stripe listen --forward-to localhost:4000/billing/webhook`
+   - Copy the webhook signing secret from the CLI output
+   - Update your `STRIPE_WEBHOOK_SECRET` in `apps/api/.env.local`
+   - Test webhook events by triggering actions in your app
+   - Monitor webhook events in the Stripe Dashboard
+
+#### Step 6: Production Configuration
+
+1. **Switch to Live Mode**:
+   - In the Stripe Dashboard, toggle to **Live mode**
+   - Get your live API keys and webhook secrets
+   - Update your environment variables with live keys
+
+2. **Update Webhook URL**:
+   - Update your webhook endpoint URL to your production API URL
+   - Ensure your production server can receive webhook events
+
+3. **Test with Real Cards**:
+   - Use real payment methods in test mode first
+   - Verify all webhook events are processed correctly
+   - Test subscription lifecycle (create, update, cancel)
+
+#### Troubleshooting
+
+**Common Issues**:
+
+1. **"Stripe not configured" warning**:
+   - Ensure all environment variables are set correctly
+   - Check that Price IDs are valid and active in Stripe Dashboard
+   - Restart your development server after adding environment variables
+
+2. **Webhook signature verification failed**:
+   - Verify the webhook secret is correct
+   - Ensure the webhook endpoint URL is accessible
+   - Check that the webhook is receiving the correct events
+
+3. **Checkout session creation fails**:
+   - Verify the Price ID exists and is active
+   - Check that the success/cancel URLs are accessible
+   - Ensure the Stripe secret key has the correct permissions
+
+4. **Customer portal not working**:
+   - Verify the customer exists in Stripe
+   - Check that the customer has an active subscription
+   - Ensure the return URL is accessible
+
+**Useful Stripe Resources**:
+- [Stripe Dashboard](https://dashboard.stripe.com) - Manage your account and view events
+- [Stripe API Documentation](https://stripe.com/docs/api) - Complete API reference
+- [Stripe Webhooks Guide](https://stripe.com/docs/webhooks) - Webhook setup and testing
+- [Stripe Test Cards](https://stripe.com/docs/testing) - Test card numbers for different scenarios
+
+#### Quick Reference
+
+**Required Environment Variables**:
+
+| Variable | Location | Description | Example |
+|----------|----------|-------------|---------|
+| `STRIPE_SECRET_KEY` | `apps/api/.env.local` | Stripe secret key | `sk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | `apps/api/.env.local` | Webhook signing secret | `whsec_...` |
+| `STRIPE_PRICE_PRO` | `apps/api/.env.local` | Pro plan price ID | `price_...` |
+| `STRIPE_PRICE_BUSINESS` | `apps/api/.env.local` | Business plan price ID | `price_...` |
+| `NEXT_PUBLIC_STRIPE_PRICE_PRO` | `apps/web/.env.local` | Pro plan price ID (public) | `price_...` |
+| `NEXT_PUBLIC_STRIPE_PRICE_BUSINESS` | `apps/web/.env.local` | Business plan price ID (public) | `price_...` |
+
+**Test Card Numbers**:
+- **Success**: `4242 4242 4242 4242`
+- **Decline**: `4000 0000 0000 0002`
+- **3D Secure**: `4000 0025 0000 3155`
+- **Requires Authentication**: `4000 0025 0000 3155`
+
+**Webhook Events Handled**:
+- `checkout.session.completed` - Store customer information
+- `customer.subscription.created` - Update plan entitlement
+- `customer.subscription.updated` - Update plan entitlement
+- `customer.subscription.deleted` - Update plan entitlement
 
 ### Billing API Endpoints
 
