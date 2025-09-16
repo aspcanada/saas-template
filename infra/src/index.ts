@@ -10,15 +10,15 @@ import { HttpApi, HttpMethod, CorsHttpMethod } from "aws-cdk-lib/aws-apigatewayv
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
-import { CloudFrontWebDistribution, OriginAccessIdentity, CloudFrontAllowedMethods, CloudFrontAllowedCachedMethods, PriceClass } from "aws-cdk-lib/aws-cloudfront";
-import { S3Origin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { Distribution, OriginAccessIdentity, CachePolicy, OriginRequestPolicy, AllowedMethods, ViewerProtocolPolicy, PriceClass } from "aws-cdk-lib/aws-cloudfront";
+import { S3StaticWebsiteOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Construct } from "constructs";
 
 export class CoreStack extends Stack {
   public readonly table: Table;
   public readonly bucket: Bucket;
   public readonly webHostingBucket: Bucket;
-  public readonly cloudFrontDistribution: CloudFrontWebDistribution;
+  public readonly cloudFrontDistribution: Distribution;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -112,49 +112,24 @@ export class CoreStack extends Stack {
 
     this.webHostingBucket.grantRead(originAccessIdentity);
 
-    this.cloudFrontDistribution = new CloudFrontWebDistribution(this, "WebDistribution", {
-      originConfigs: [{
-        s3OriginSource: {
-          s3BucketSource: this.webHostingBucket,
-          originAccessIdentity: originAccessIdentity
-        },
-        behaviors: [{
-          isDefaultBehavior: true,
-          allowedMethods: CloudFrontAllowedMethods.GET_HEAD_OPTIONS,
-          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
-          compress: true,
-          defaultTtl: Duration.days(1),
-          maxTtl: Duration.days(7),
-          minTtl: Duration.seconds(0),
-        }, {
-          // Static assets - cache longer
-          pathPattern: "static/*",
-          allowedMethods: CloudFrontAllowedMethods.GET_HEAD_OPTIONS,
-          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
-          defaultTtl: Duration.days(30),
-          maxTtl: Duration.days(365),
-          minTtl: Duration.seconds(0),
-        }, {
-          // API routes - no caching
-          pathPattern: "api/*",
-          allowedMethods: CloudFrontAllowedMethods.ALL,
-          cachedMethods: CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
-          defaultTtl: Duration.seconds(0),
-          maxTtl: Duration.seconds(0),
-          minTtl: Duration.seconds(0),
-        }]
-      }],
-      errorConfigurations: [{
-        errorCode: 404,
-        responseCode: 200,
+    this.cloudFrontDistribution = new Distribution(this, "WebDistribution", {
+      defaultBehavior: {
+        origin: new S3StaticWebsiteOrigin(this.webHostingBucket),
+        allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+      },
+      errorResponses: [{
+        httpStatus: 404,
+        responseHttpStatus: 200,
         responsePagePath: "/index.html"
       }, {
-        errorCode: 403,
-        responseCode: 200,
+        httpStatus: 403,
+        responseHttpStatus: 200,
         responsePagePath: "/index.html"
       }],
       comment: "SaaS Template Web Distribution",
-      priceClass: PriceClass.PRICE_CLASS_100, // Use only North America and Europe for cost optimization
+      priceClass: PriceClass.PRICE_CLASS_100,
     });
 
     // Outputs
