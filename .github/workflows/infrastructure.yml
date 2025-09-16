@@ -1,0 +1,95 @@
+name: Infrastructure Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Infrastructure action to perform'
+        required: true
+        type: choice
+        options:
+        - deploy
+        - destroy
+        - diff
+        - synth
+      environment:
+        description: 'Environment'
+        required: true
+        type: choice
+        options:
+        - production
+        - development
+      stack:
+        description: 'Stack to manage (leave empty for all)'
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.5.2'
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ env.PNPM_VERSION }}
+        
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        
+    - name: Install AWS CDK
+      run: npm install -g aws-cdk
+      
+    - name: Build infrastructure
+      run: pnpm -C infra build
+      
+    - name: CDK Bootstrap (if needed)
+      if: inputs.action == 'deploy'
+      run: pnpm -C infra cdk:bootstrap
+      continue-on-error: true
+      
+    - name: Deploy CoreStack
+      if: inputs.action == 'deploy' && (inputs.stack == '' || inputs.stack == 'core')
+      run: pnpm -C infra cdk:deploy SaasTemplateCore --require-approval never
+      
+    - name: Deploy ApiStack
+      if: inputs.action == 'deploy' && (inputs.stack == '' || inputs.stack == 'api')
+      run: pnpm -C infra cdk:deploy SaasTemplateApi --require-approval never
+      
+    - name: Destroy ApiStack
+      if: inputs.action == 'destroy' && (inputs.stack == '' || inputs.stack == 'api')
+      run: pnpm -C infra cdk:destroy SaasTemplateApi --force
+      
+    - name: Destroy CoreStack
+      if: inputs.action == 'destroy' && (inputs.stack == '' || inputs.stack == 'core')
+      run: pnpm -C infra cdk:destroy SaasTemplateCore --force
+      
+    - name: Show CDK Diff
+      if: inputs.action == 'diff'
+      run: pnpm -C infra cdk:diff
+      
+    - name: Synthesize CDK
+      if: inputs.action == 'synth'
+      run: pnpm -C infra cdk:synth
+      
+    - name: List Stacks
+      run: pnpm -C infra cdk:list

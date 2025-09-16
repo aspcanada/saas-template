@@ -679,9 +679,115 @@ pnpm -C apps/web test
 - **Isolation**: Each test runs in isolation with clean state
 - **CI Ready**: Configured for continuous integration
 
+## Deployment
+
+The project includes comprehensive deployment automation with GitHub Actions and deployment scripts.
+
+### GitHub Actions Workflows
+
+#### Production Deployment (`deploy-production.yml`)
+- **Trigger**: Push to `main` branch or manual dispatch
+- **Steps**: Test → Deploy Infrastructure → Deploy Web App
+- **Environment**: Production AWS + Vercel
+
+#### Development Deployment (`deploy-development.yml`)
+- **Trigger**: Push to `develop` or `feature/*` branches, PRs, or manual dispatch
+- **Steps**: Test → Deploy Infrastructure → Deploy Web App (Preview)
+- **Environment**: Development AWS + Vercel Preview
+
+#### Infrastructure Management (`infrastructure.yml`)
+- **Trigger**: Manual dispatch only
+- **Actions**: Deploy, Destroy, Diff, Synthesize
+- **Environments**: Production or Development
+
+### Deployment Scripts
+
+#### Quick Deploy
+```bash
+# Deploy to development
+./scripts/deploy.sh --environment development
+
+# Deploy to production
+./scripts/deploy.sh --environment production
+
+# Dry run (see what would be deployed)
+./scripts/deploy.sh --dry-run
+
+# Skip tests (faster deployment)
+./scripts/deploy.sh --environment development --skip-tests
+```
+
+#### Environment Setup
+```bash
+# Set up development environment
+./scripts/setup-env.sh development
+
+# Set up production environment
+./scripts/setup-env.sh production
+```
+
+### Required GitHub Secrets
+
+See [`.github/SECRETS.md`](.github/SECRETS.md) for complete setup instructions.
+
+**Essential Secrets:**
+- AWS credentials (production + development)
+- Clerk authentication keys
+- Stripe price IDs (optional)
+- Vercel deployment tokens
+
+### Manual Deployment
+
+#### 1. Infrastructure Deployment
+```bash
+# Install dependencies
+pnpm install
+
+# Build infrastructure
+pnpm -C infra build
+
+# Deploy CoreStack first
+pnpm -C infra cdk:deploy SaasTemplateCore
+
+# Deploy ApiStack
+pnpm -C infra cdk:deploy SaasTemplateApi
+```
+
+#### 2. Web Application Deployment
+```bash
+# Build web app
+NEXT_PUBLIC_API_BASE_URL=https://your-api-url.com pnpm -C apps/web build
+
+# Deploy to Vercel
+vercel --prod
+```
+
+### Environment-Specific Configuration
+
+| Component | Development | Production |
+|-----------|-------------|------------|
+| **AWS Stack** | `SaasTemplateDev*` | `SaasTemplate*` |
+| **Vercel** | Preview deployment | Production deployment |
+| **Clerk** | Test keys | Live keys |
+| **Stripe** | Test mode | Live mode |
+| **Domain** | `*.vercel.app` | Custom domain |
+
+### Monitoring and Troubleshooting
+
+#### Check Deployment Status
+1. Go to GitHub Actions tab
+2. View workflow runs and logs
+3. Check AWS CloudFormation stacks
+4. Verify Vercel deployments
+
+#### Common Issues
+- **AWS Permissions**: Ensure IAM user has required policies
+- **Environment Variables**: Verify all secrets are set correctly
+- **Stack Dependencies**: Deploy CoreStack before ApiStack
+- **Build Failures**: Check logs for missing dependencies or configuration
+
 ## Next Steps
 
-- Configure deployment pipelines for each environment
 - Add user profile management
 - Implement role-based access control
 - Add webhook handlers for Stripe events
