@@ -2,11 +2,8 @@
 
 import { UserButton, SignInButton, SignUpButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useUser();
-  const pathname = usePathname();
 
   return (
     <div className="min-h-screen bg-white">

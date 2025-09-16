@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { Note, CreateNoteRequest, UpdateNoteRequest } from "../../../src/types/notes";
 
@@ -13,7 +13,7 @@ export default function NotesPage() {
   const [formData, setFormData] = useState({ title: "", content: "" });
 
   // Fetch notes
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
       const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:4000";
       const token = await getToken();
@@ -35,7 +35,7 @@ export default function NotesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken]);
 
   // Create note
   const createNote = async (noteData: CreateNoteRequest) => {
@@ -142,7 +142,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [fetchNotes]);
 
   if (loading) {
     return (
